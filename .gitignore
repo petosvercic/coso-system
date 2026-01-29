@@ -1,0 +1,9 @@
+﻿node_modules/
+dist/
+dist-test/
+.next/
+.vercel/
+.env
+.env.local
+apps/
+_quarantine/
