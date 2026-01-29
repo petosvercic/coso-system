@@ -9,10 +9,13 @@
     "start": "next start -p 3005"
   },
   "dependencies": {
+    "coso-contract": "file:../coso-contract",
+    "coso-engine": "file:../coso-engine",
     "next": "16.1.4",
     "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "coso-contract": "file:../coso-contract",
-    "coso-engine": "file:../coso-engine"
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
