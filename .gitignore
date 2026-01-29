@@ -3,7 +3,14 @@ dist/
 dist-test/
 .next/
 .vercel/
+<<<<<<< HEAD
 .env
 .env.local
 apps/
 _quarantine/
+=======
+apps/
+_quarantine/
+.env
+.env.*
+>>>>>>> c4aa401 (chore: ignore build artifacts and node_modules)
