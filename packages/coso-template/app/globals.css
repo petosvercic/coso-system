@@ -1,11 +1,3 @@
-﻿:root { color-scheme: light; }
-* { box-sizing: border-box; }
-body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-main { max-width: 720px; margin: 0 auto; padding: 24px; }
-h1 { font-size: 20px; margin: 0 0 16px 0; }
-label { display: block; margin: 12px 0 6px; font-weight: 600; }
-input { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; }
-button { margin-top: 14px; padding: 10px 12px; border: 1px solid #111; border-radius: 10px; background: #111; color: #fff; cursor: pointer; }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-pre { white-space: pre-wrap; background: #f6f6f6; padding: 12px; border-radius: 10px; border: 1px solid #e5e5e5; }
-small { color: #555; }
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;

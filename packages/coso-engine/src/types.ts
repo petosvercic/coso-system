@@ -1,4 +1,4 @@
-export type EngineInput = {
+﻿export type EngineInput = {
   subject: string;
   locale?: "sk" | "cz" | "en" | string;
 
@@ -14,4 +14,8 @@ export type EngineResult = {
 
   // engine code mentions subject in output
   subject?: string;
+  meta?: {
+    engineVersion: string;
+    computedAt: string;
+  };
 };

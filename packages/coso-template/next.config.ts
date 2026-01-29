@@ -1,12 +1,15 @@
-import type { NextConfig } from "next";
-import path from "node:path";
+﻿import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["coso-contract", "coso-engine"],
-  turbopack: {
-    root: path.resolve(__dirname)
-  }
+
+  // dôležité pri "file:" deps / symlink balíkoch mimo projektu
+  experimental: {
+    externalDir: true,
+  },
+
+  // nech bundler korektne spracuje lokálne balíky
+  transpilePackages: ["coso-engine", "coso-contract"],
 };
 
 export default nextConfig;

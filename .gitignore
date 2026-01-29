@@ -14,3 +14,6 @@ _quarantine/
 .env
 .env.*
 >>>>>>> c4aa401 (chore: ignore build artifacts and node_modules)
+
+packages/template-root/
+

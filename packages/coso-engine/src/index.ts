@@ -1,4 +1,4 @@
-import type { EngineInput, EngineResult } from "./types";
+﻿import type { EngineInput, EngineResult } from "./types";
 
 const ENGINE_VERSION = "1.0.0";
 const FIXED_COMPUTED_AT = "1970-01-01T00:00:00.000Z";
@@ -62,19 +62,22 @@ function clampInt(n: number, min: number, max: number): number {
 }
 
 function normalizeLocale(locale: EngineInput["locale"]): "sk" | "cz" | "en" {
-  return locale ?? "sk";
+  const v = String(locale ?? "sk").toLowerCase();
+  if (v === "cz" || v === "cs") return "cz";
+  if (v === "en") return "en";
+  return "sk";
 }
 
 function buildVerdict(score: number, locale: "sk" | "cz" | "en"): string {
   if (locale === "en") {
-    if (score >= 67) return "High signal. Your baseline looks unusually stable.";
-    if (score >= 34) return "Mixed signal. There are both solid and weak spots.";
-    return "Low signal. Expect volatility and course-corrections.";
+  if (score >= 67) return "Silný signál. Základ pôsobí nezvyčajne stabilne.";
+  if (score >= 34) return "Zmiešaný signál. Niečo sedí, niečo škrípe.";
+  return "Slabý signál. Rátaj s výkyvmi a korekciami.";
   }
   if (locale === "cz") {
-    if (score >= 67) return "Vysoký signál. Základ vypadá neobvykle stabilně.";
-    if (score >= 34) return "Smíšený signál. Něco sedí, něco drhne.";
-    return "Nízký signál. Počítej s výkyvy a korekcemi.";
+    if (score >= 67) return "Vysoký signál. Základ vyzerá nezvyčajne stabilne.";
+    if (score >= 34) return "Zmiešaný signál. Niečo sedí, niečo drhne.";
+    return "Nízky signál. Počítaj s výkyvmi a korekciami.";
   }
   // sk
   if (score >= 67) return "Silný signál. Základ pôsobí nezvyčajne stabilne.";
@@ -147,3 +150,5 @@ export function compute(input: EngineInput): EngineResult {
 }
 
 export type { EngineInput, EngineResult } from "./types";
+
+
