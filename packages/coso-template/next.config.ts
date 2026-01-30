@@ -3,10 +3,7 @@
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
-  // dôležité pri "file:" deps / symlink balíkoch mimo projektu
-  experimental: {
-    externalDir: true,
-  },
+  // dôležité pri "file:" deps / symlink balíkoch mimo projektu,
 
   // nech bundler korektne spracuje lokálne balíky
   transpilePackages: ["coso-engine", "coso-contract"],

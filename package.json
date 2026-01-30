@@ -1,0 +1,11 @@
+{
+  "name": "coso-system",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "packageManager": "npm@10",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "npm run build -w packages/coso-contract && npm run build -w packages/coso-engine && npm run build -w packages/coso-template",
+    "dev": "npm run dev -w packages/coso-template"
+  }
+}
