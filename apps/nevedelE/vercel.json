@@ -1,4 +1,4 @@
-﻿{
+{
   "installCommand": "cd ../.. && npm ci",
   "buildCommand": "cd ../.. && npm run build -w apps/nevedelE"
 }
