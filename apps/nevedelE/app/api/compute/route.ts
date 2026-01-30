@@ -7,8 +7,14 @@ import { EngineInputSchema } from "coso-contract";
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
+
+    // Accept either:
+    // 1) { input: <EngineInput> }
+    // 2) <EngineInput>
     const candidate =
-      body && typeof body === "object" && "input" in (body as any) ? (body as any).input : null;
+      body && typeof body === "object" && body !== null && "input" in (body as any)
+        ? (body as any).input
+        : body;
 
     const parsed = (EngineInputSchema as any).safeParse
       ? (EngineInputSchema as any).safeParse(candidate)
@@ -30,6 +36,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
-
-
