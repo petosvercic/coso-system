@@ -1,19 +1,22 @@
-﻿node_modules/
+﻿# deps / builds
+node_modules/
 dist/
 dist-test/
 .next/
 .vercel/
-<<<<<<< HEAD
+
+# env
 .env
 .env.local
-apps/
-_quarantine/
-=======
-apps/
-_quarantine/
-.env
+.env.*.local
 .env.*
->>>>>>> c4aa401 (chore: ignore build artifacts and node_modules)
 
+# misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+
+# optional quarantine
+_quarantine/
 packages/template-root/
-
