@@ -1,5 +1,0 @@
-{
-  "installCommand": "cd ../.. && npm ci",
-  "buildCommand": "cd ../.. && npm run build",
-  "devCommand": "cd ../.. && npm run dev"
-}
