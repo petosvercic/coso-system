@@ -20,3 +20,5 @@ yarn-error.log*
 # optional quarantine
 _quarantine/
 packages/template-root/
+
+*.broken.*.bak
