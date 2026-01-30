@@ -1,19 +1,20 @@
 {
-    "name":  "coso-system",
-    "private":  true,
-    "workspaces":  [
-                       "packages/*",
-                       "apps/nevedelE"
-                   ],
-    "packageManager":  "npm@10",
-    "engines":  {
-                    "node":  "\u003e=20"
-                },
-    "scripts":  {
-                    "build":  "npm run build -w packages/coso-contract \u0026\u0026 npm run build -w packages/coso-engine \u0026\u0026 npm run build -w apps/nevedelE",
-                    "dev":  "npm run dev -w apps/nevedelE",
-                    "start":  "npm run start -w apps/nevedelE",
-                    "fix":  "node scripts/doctor.mjs --fix-bom",
-                    "verify":  "node scripts/doctor.mjs \u0026\u0026 npm run build \u0026\u0026 node scripts/doctor.mjs --postbuild"
-                }
+    "name": "coso-system",
+    "private": true,
+    "workspaces": [
+        "packages/*",
+        "apps/nevedelE"
+    ],
+    "packageManager": "npm@10",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "build": "npm run build -w packages/coso-contract && npm run build -w packages/coso-engine && npm run build -w apps/nevedelE",
+        "dev": "npm run dev -w apps/nevedelE",
+        "start": "npm run start -w apps/nevedelE",
+        "fix": "node scripts/doctor.mjs --fix-bom",
+        "verify": "node scripts/doctor.mjs && npm run build && node scripts/doctor.mjs --postbuild",
+        "build:nevedelE": "npm run build -w packages/coso-contract && npm run build -w packages/coso-engine && npm run build -w apps/nevedelE"
+    }
 }
