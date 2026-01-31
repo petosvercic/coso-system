@@ -3,8 +3,9 @@ import path from "node:path";
 
 function fail(msg) { console.error(msg); process.exit(1); }
 
-const raw = process.env.EDITION_JSON;
-if (!raw) fail("Missing EDITION_JSON");
+const raw0 = process.env.EDITION_JSON;
+if (!raw0) fail("Missing EDITION_JSON");
+const raw = String(raw0).replace(/^\uFEFF/, "").trim();
 
 let edition;
 try { edition = JSON.parse(raw); } catch { fail("EDITION_JSON is not valid JSON"); }
@@ -48,3 +49,4 @@ const edPath = path.join(dir, `${edition.slug}.json`);
 fs.writeFileSync(edPath, JSON.stringify({ ...edition, createdAt: now }, null, 2) + "\n", "utf8");
 
 console.log("OK: appended edition", edition.slug);
+
