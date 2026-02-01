@@ -22,3 +22,6 @@ _quarantine/
 packages/template-root/
 
 *.broken.*.bak
+
+.vercel
+.env*.local
