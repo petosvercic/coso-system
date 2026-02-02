@@ -10,30 +10,54 @@ function buildPrompt(editions: EditionIndexEntry[]) {
     .join("\n");
 
   return [
-    "ROLE: Si content generator pre COSO edície.",
+    "ROLE: Si generator edícií pre COSO Factory.",
     "",
-    "CIEĽ:",
-    "- Vygeneruj NOVÚ edíciu pre rovnakú web-app šablónu.",
-    "- Musí to byť unikátna edícia (žiadne kópie).",
+    "KONTEXT PRODUKTU:",
+    "- Každá edícia je jedna stránka /e/<slug>.",
+    "- User vyplní meno (voliteľné) a dátum narodenia (YYYY-MM-DD).",
+    "- Engine vypočíta výsledok pre zadaný subject.",
+    "- Bez platby ukážeme iba teaser (napr. score + krátky preview). Plné výsledky sú za paywallom.",
+    "- Platba prebieha cez Stripe checkout.",
     "",
     "VÝSTUP:",
-    "Vráť presne 1 JSON objekt (bez markdown).",
-    "Schéma:",
+    "Vráť presne 1 JSON objekt (bez markdown, bez komentárov).",
+    "",
+    "SCHÉMA (MUSÍ SEDIEŤ):",
     "{",
-    '  \"slug\": \"lowercase-hyphen-slug (3-64 chars, unique)\",',
-    '  \"title\": \"Ľudský názov edície\",',
-    '  \"content\": {',
-    '    \"heroTitle\": \"…\",',
-    '    \"heroSubtitle\": \"…\",',
-    '    \"items\": [ { \"title\": \"…\", \"text\": \"…\" } ],',
-    '    \"paywall\": { \"headline\": \"…\", \"bullets\": [\"…\"], \"cta\": \"…\" }',
+    '  "slug": "lowercase-hyphen-slug (3-64 chars, unique)",',
+    '  "title": "Ľudský názov edície",',
+    '  "engine": {',
+    '    "subject": "String ktorý pôjde do engine inputu ako subject",',
+    '    "locale": "sk"',
+    "  },",
+    '  "content": {',
+    '    "heroTitle": "…",',
+    '    "heroSubtitle": "…",',
+    '    "intro": { "title": "…", "text": "…" },',
+    '    "form": {',
+    '      "title": "…",',
+    '      "nameLabel": "…",',
+    '      "birthDateLabel": "…",',
+    '      "submitLabel": "…" ',
+    "    },",
+    '    "result": {',
+    '      "teaserTitle": "…",',
+    '      "teaserNote": "…",',
+    '      "unlockHint": "…" ',
+    "    },",
+    '    "paywall": {',
+    '      "headline": "…",',
+    '      "bullets": ["…","…","…"],',
+    '      "cta": "…" ',
+    "    }",
     "  }",
     "}",
     "",
     "PRAVIDLÁ:",
     "- slug musí byť unikátny (pozri zoznam nasadených edícií nižšie).",
-    "- nepoužívaj vulgárnosti ani hate.",
-    "- content píš po slovensky.",
+    "- Téma edície nesmie byť 1:1 kópia už nasadenej edície.",
+    "- Texty píš po slovensky, stručné, jasné, bez cringe marketingu.",
+    "- bullets max 3, každá do 10 slov.",
     "",
     "NASADENÉ EDÍCIE (nesmieš zopakovať slug ani tému 1:1):",
     deployed || "- (zatiaľ nič)",
@@ -61,16 +85,60 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
     }
 
     if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { ok: false, error: "NOT_OBJECT" };
+
+    // slug/title
     if (typeof obj.slug !== "string" || !obj.slug.trim()) return { ok: false, error: "MISSING_SLUG" };
     if (typeof obj.title !== "string" || !obj.title.trim()) return { ok: false, error: "MISSING_TITLE" };
-    if (!obj.content || typeof obj.content !== "object" || Array.isArray(obj.content))
-      return { ok: false, error: "MISSING_CONTENT_OBJECT" };
 
     const slug = obj.slug.trim();
     if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(slug)) return { ok: false, error: "BAD_SLUG", details: slug };
     if (editions.some((e) => e.slug === slug)) return { ok: false, error: "DUPLICATE_SLUG", details: slug };
 
-    return { ok: true, obj: { ...obj, slug, title: obj.title.trim() } };
+    // engine
+    if (!obj.engine || typeof obj.engine !== "object" || Array.isArray(obj.engine))
+      return { ok: false, error: "MISSING_ENGINE_OBJECT" };
+    if (typeof obj.engine.subject !== "string" || !obj.engine.subject.trim())
+      return { ok: false, error: "MISSING_ENGINE_SUBJECT" };
+    if (obj.engine.locale !== "sk") return { ok: false, error: "ENGINE_LOCALE_MUST_BE_SK" };
+
+    // content
+    if (!obj.content || typeof obj.content !== "object" || Array.isArray(obj.content))
+      return { ok: false, error: "MISSING_CONTENT_OBJECT" };
+
+    const c = obj.content;
+    if (typeof c.heroTitle !== "string" || !c.heroTitle.trim()) return { ok: false, error: "MISSING_HERO_TITLE" };
+    if (typeof c.heroSubtitle !== "string" || !c.heroSubtitle.trim()) return { ok: false, error: "MISSING_HERO_SUBTITLE" };
+
+    if (!c.intro || typeof c.intro !== "object" || Array.isArray(c.intro)) return { ok: false, error: "MISSING_INTRO" };
+    if (typeof c.intro.title !== "string" || !c.intro.title.trim()) return { ok: false, error: "MISSING_INTRO_TITLE" };
+    if (typeof c.intro.text !== "string" || !c.intro.text.trim()) return { ok: false, error: "MISSING_INTRO_TEXT" };
+
+    if (!c.form || typeof c.form !== "object" || Array.isArray(c.form)) return { ok: false, error: "MISSING_FORM" };
+    for (const k of ["title", "nameLabel", "birthDateLabel", "submitLabel"] as const) {
+      if (typeof c.form[k] !== "string" || !c.form[k].trim()) return { ok: false, error: `MISSING_FORM_${k}` };
+    }
+
+    if (!c.result || typeof c.result !== "object" || Array.isArray(c.result)) return { ok: false, error: "MISSING_RESULT_COPY" };
+    for (const k of ["teaserTitle", "teaserNote", "unlockHint"] as const) {
+      if (typeof c.result[k] !== "string" || !c.result[k].trim()) return { ok: false, error: `MISSING_RESULT_${k}` };
+    }
+
+    if (!c.paywall || typeof c.paywall !== "object" || Array.isArray(c.paywall)) return { ok: false, error: "MISSING_PAYWALL" };
+    if (typeof c.paywall.headline !== "string" || !c.paywall.headline.trim())
+      return { ok: false, error: "MISSING_PAYWALL_HEADLINE" };
+    if (!Array.isArray(c.paywall.bullets) || c.paywall.bullets.length < 1) return { ok: false, error: "MISSING_PAYWALL_BULLETS" };
+    if (c.paywall.bullets.length > 3) return { ok: false, error: "PAYWALL_BULLETS_MAX_3" };
+    if (typeof c.paywall.cta !== "string" || !c.paywall.cta.trim()) return { ok: false, error: "MISSING_PAYWALL_CTA" };
+
+    return {
+      ok: true,
+      obj: {
+        ...obj,
+        slug,
+        title: obj.title.trim(),
+        engine: { subject: obj.engine.subject.trim(), locale: "sk" },
+      },
+    };
   }
 
   async function onCopyPrompt() {
@@ -78,14 +146,14 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
       await navigator.clipboard.writeText(prompt);
       setStatus({ kind: "ok", msg: "Prompt skopírovaný." });
     } catch {
-      setStatus({ kind: "err", msg: "Kopírovanie zlyhalo. Skús Ctrl+C ako človek z roku 2007." });
+      setStatus({ kind: "err", msg: "Kopírovanie zlyhalo. Ctrl+C funguje ako vždy." });
     }
   }
 
   async function onDispatch() {
     const v = validateLocal(editionJson);
     if (!v.ok) {
-      setStatus({ kind: "err", msg: `Neplatný JSON: ${v.error}${v.details ? ` (${v.details})` : ""}` });
+      setStatus({ kind: "err", msg: `Neplatný JSON: ${v.error}${(v as any).details ? ` (${(v as any).details})` : ""}` });
       return;
     }
 
@@ -112,7 +180,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
     <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 980 }}>
       <h1 style={{ fontSize: 28, marginBottom: 8 }}>Factory Builder</h1>
       <p style={{ opacity: 0.8, marginTop: 0 }}>
-        Prompt je pevný (šablóna). Jediné čo sa mení je zoznam nasadených edícií, aby sa nerobili kópie.
+        Prompt je pevný. Mení sa len sekcia NASADENÉ EDÍCIE, aby si nerobil kópie.
       </p>
 
       <section style={{ marginTop: 18 }}>
@@ -120,7 +188,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          rows={18}
+          rows={20}
           style={{ width: "100%", padding: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
         />
         <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -136,7 +204,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
           value={editionJson}
           onChange={(e) => setEditionJson(e.target.value)}
           rows={12}
-          placeholder='Sem vlož čistý JSON objekt: { "slug": "...", "title": "...", "content": {...} }'
+          placeholder='Sem vlož čistý JSON objekt podľa promptu…'
           style={{ width: "100%", padding: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
         />
         <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
