@@ -12,11 +12,14 @@ function getStripe() {
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as null | { rid?: unknown; priceId?: unknown };
+    const body = (await req.json().catch(() => null)) as null | { rid?: unknown; priceId?: unknown; returnTo?: unknown };
 
     const rid = typeof body?.rid === "string" ? body.rid : null;
     const priceId =
       typeof body?.priceId === "string" ? body.priceId : process.env.STRIPE_PRICE_ID ?? null;
+
+    // Optional: let the client tell us where to come back (e.g. /e/<slug>)
+    const returnTo = typeof body?.returnTo === "string" ? body.returnTo : "/";
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
 
@@ -32,11 +35,13 @@ export async function POST(req: Request) {
 
     const stripe = getStripe();
 
+    const safeReturnTo = returnTo.startsWith("/") ? returnTo : "/";
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}/?rid=${encodeURIComponent(rid)}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/?rid=${encodeURIComponent(rid)}&canceled=1`,
+      success_url: `${appUrl}${safeReturnTo}?rid=${encodeURIComponent(rid)}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}${safeReturnTo}?rid=${encodeURIComponent(rid)}&canceled=1`,
       metadata: { rid },
       client_reference_id: rid,
     });
