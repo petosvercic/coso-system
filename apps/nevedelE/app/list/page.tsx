@@ -25,10 +25,11 @@ export default function ListPage() {
 
   return (
     <main style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Edície (nasadené weby)</h1>
+      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Edicie (nasadene weby)</h1>
+      <p style={{ opacity: 0.7, marginTop: 0 }}>index: {idxPath}</p>
 
       {editions.length === 0 ? (
-        <p style={{ opacity: 0.75 }}>Zatiaľ nič. Keď workflow pridá edíciu, objaví sa tu.</p>
+        <p style={{ opacity: 0.75 }}>Zatial nic. Ked workflow prida ediciu, objavi sa tu.</p>
       ) : (
         <ul style={{ lineHeight: 1.8 }}>
           {editions.map((e) => (
@@ -43,7 +44,7 @@ export default function ListPage() {
       )}
 
       <p style={{ marginTop: 16 }}>
-        <a href="/">späť</a>
+        <a href="/">spat</a>
       </p>
     </main>
   );

@@ -7,12 +7,17 @@ function readJsonNoBom(filePath: string) {
   return JSON.parse(raw);
 }
 
-export default async function EditionPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+// Next 16: params can be a Promise -> await it
+export default async function EditionPage({
+  params,
+}: {
+  params: Promise<{ slug: string }> | { slug: string };
+}) {
+  const p: any = await (params as any);
+  const slug = String(p?.slug ?? "");
 
-  // v rámci appky: apps/nevedelE/data/...
   const edPath = path.join(process.cwd(), "data", "editions", `${slug}.json`);
-  if (!fs.existsSync(edPath)) notFound();
+  if (!slug || !fs.existsSync(edPath)) notFound();
 
   const ed = readJsonNoBom(edPath);
 
