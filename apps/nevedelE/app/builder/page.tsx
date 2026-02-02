@@ -1,29 +1,24 @@
-﻿"use client";
+import fs from "node:fs";
+import path from "node:path";
+import BuilderClient from "./ui";
 
-import { useState } from "react";
+type EditionIndexEntry = { slug: string; title: string; createdAt?: string };
+
+function readJsonNoBom(filePath: string) {
+  const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  return JSON.parse(raw);
+}
 
 export default function BuilderPage() {
-  const [prompt, setPrompt] = useState("");
+  const idxPath = path.join(process.cwd(), "data", "editions.json");
 
-  return (
-    <main style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Builder</h1>
-      <p style={{ opacity: 0.8, marginBottom: 12 }}>
-        Prompt + flow pre generovanie web-app (zatial skeleton).
-      </p>
-      <textarea
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        rows={6}
-        style={{ width: "100%", maxWidth: 720, padding: 12 }}
-        placeholder="Napis co ma web robit"
-      />
-      <div style={{ marginTop: 12, display: "flex", gap: 12 }}>
-        <button onClick={() => alert("TODO: napojit na /api/compute")}>
-          Generate
-        </button>
-        <a href="/">spat</a>
-      </div>
-    </main>
-  );
+  let editions: EditionIndexEntry[] = [];
+  try {
+    const idx = readJsonNoBom(idxPath);
+    editions = Array.isArray(idx?.editions) ? idx.editions : [];
+  } catch {
+    editions = [];
+  }
+
+  return <BuilderClient editions={editions} />;
 }
