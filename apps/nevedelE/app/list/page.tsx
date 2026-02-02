@@ -25,7 +25,7 @@ export default function ListPage() {
 
   return (
     <main style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Edicie (nasadene weby)</h1>
+      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Edície (nasadené weby)</h1>
       <p style={{ opacity: 0.7, marginTop: 0 }}>index: {idxPath}</p>
 
       {editions.length === 0 ? (
@@ -44,7 +44,7 @@ export default function ListPage() {
       )}
 
       <p style={{ marginTop: 16 }}>
-        <a href="/">spat</a>
+        <a href="/">späť</a>
       </p>
     </main>
   );
