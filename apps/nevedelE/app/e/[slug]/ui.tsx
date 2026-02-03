@@ -22,10 +22,10 @@ function makeRid(slug: string) {
 function normalizeBirthDate(s: string) {
   const t = (s || "").trim();
 
-  // ISO from input[type=date] is already YYYY-MM-DD
+  // input[type=date] gives ISO YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
 
-  // Fallback: "08. 02. 1991" or "08.02.1991"
+  // fallback: 08. 02. 1991 / 08.02.1991
   const m = t.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/);
   if (m) {
     const dd = m[1].padStart(2, "0");
@@ -33,7 +33,6 @@ function normalizeBirthDate(s: string) {
     const yyyy = m[3];
     return `${yyyy}-${mm}-${dd}`;
   }
-
   return null;
 }
 
@@ -57,6 +56,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     setRid(next);
   }, [slug, storageKey]);
 
+  // Handle Stripe return
   useEffect(() => {
     const url = new URL(window.location.href);
     const sessionId = url.searchParams.get("session_id");
@@ -83,12 +83,8 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
   async function onCompute() {
     setErr("");
-
     const iso = normalizeBirthDate(birthDate);
-    if (!iso) {
-      setErr("Zadaj dátum narodenia.");
-      return;
-    }
+    if (!iso) { setErr("Zadaj dátum narodenia."); return; }
 
     setBusy("Počítam…");
     try {
@@ -119,6 +115,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     localStorage.setItem(storageKey, effectiveRid);
     setRid(effectiveRid);
 
+    document.getElementById("paywall-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
     setBusy("Presmerúvam na platbu…");
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -131,7 +128,10 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       });
 
       const j = await res.json().catch(() => null);
-      if (!res.ok || !j?.ok || !j?.url) throw new Error(j?.error ?? "CHECKOUT_FAILED");
+      if (!res.ok || !j?.ok || !j?.url) {
+        const msg = (j?.error ?? "CHECKOUT_FAILED") + (j?.message ? (": " + j.message) : "");
+        throw new Error(msg);
+      }
       window.location.href = j.url;
     } catch (e: any) {
       setErr(String(e?.message ?? e));
@@ -167,12 +167,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
           <label>
             <div style={{ fontSize: 13, opacity: 0.8 }}>{c?.form?.birthDateLabel ?? "Dátum narodenia"}</div>
-            <input
-              type="date"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              style={{ width: "100%", padding: 10 }}
-            />
+            <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} style={{ width: "100%", padding: 10 }} />
           </label>
         </div>
 
@@ -188,7 +183,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
       {result ? (
         <section style={{ marginTop: 18, padding: 14, border: "1px solid #ddd" }}>
-          <h2 style={{ marginTop: 0 }}>{paid ? "Výsledok" : (c?.result?.teaserTitle ?? "Náhľad výsledku")}</h2>
+          <h2 style={{ marginTop: 0 }}>{paid ? "Výsledok" : (c?.result?.teaserTitle ?? "Náhľad")}</h2>
 
           {visibleCats.length ? (
             <div style={{ display: "grid", gap: 14 }}>
@@ -230,16 +225,18 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
           )}
 
           {!paid ? (
-            <div style={{ marginTop: 14, padding: 12, background: "#f6f6f6", border: "1px solid #e4e4e4" }}>
-              <h3 style={{ marginTop: 0 }}>{c?.paywall?.headline ?? "Odomkni plnú verziu"}</h3>
+            <div id="paywall-box" style={{ marginTop: 14, padding: 12, background: "#f6f6f6", border: "1px solid #e4e4e4" }}>
+              <h3 style={{ marginTop: 0 }}>{c?.paywall?.headline ?? "Odomkni celý výsledok"}</h3>
               <ul>
-                {(c?.paywall?.bullets ?? []).slice(0, 6).map((b: string, idx: number) => (
+                {(c?.paywall?.bullets ?? []).slice(0, 8).map((b: string, idx: number) => (
                   <li key={idx}>{b}</li>
                 ))}
               </ul>
               <button onClick={onCheckout} disabled={Boolean(busy)} style={{ padding: 12 }}>
                 {c?.paywall?.cta ?? "Odomknúť"}
               </button>
+              {busy ? <p style={{ marginTop: 10, opacity: 0.8 }}>{busy}</p> : null}
+              {err ? <p style={{ marginTop: 10, color: "crimson" }}>{err}</p> : null}
             </div>
           ) : null}
         </section>

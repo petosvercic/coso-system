@@ -4,40 +4,30 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("MISSING_STRIPE_SECRET_KEY");
-  return new Stripe(key);
-}
-
 function safeReturnTo(x: unknown) {
   if (typeof x !== "string") return null;
   const s = x.trim();
-  // allow only same-origin path
   if (!s.startsWith("/")) return null;
-  // avoid open redirects to //evil.com
   if (s.startsWith("//")) return null;
   return s;
 }
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as
-      | null
-      | { rid?: unknown; priceId?: unknown; returnTo?: unknown };
-
+    const body = (await req.json().catch(() => null)) as null | { rid?: unknown; returnTo?: unknown; priceId?: unknown };
     const rid = typeof body?.rid === "string" ? body.rid : null;
-    const priceId = typeof body?.priceId === "string" ? body.priceId : (process.env.STRIPE_PRICE_ID ?? null);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
     const returnTo = safeReturnTo(body?.returnTo) ?? "/";
+    const priceId = (typeof body?.priceId === "string" ? body.priceId : (process.env.STRIPE_PRICE_ID ?? null));
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
+    const key = process.env.STRIPE_SECRET_KEY ?? null;
 
     if (!rid) return NextResponse.json({ ok: false, error: "MISSING_RID" }, { status: 400 });
+    if (!key) return NextResponse.json({ ok: false, error: "MISSING_STRIPE_SECRET_KEY" }, { status: 500 });
     if (!priceId) return NextResponse.json({ ok: false, error: "MISSING_PRICE_ID" }, { status: 500 });
     if (!appUrl) return NextResponse.json({ ok: false, error: "MISSING_APP_URL" }, { status: 500 });
 
-    const stripe = getStripe();
+    const stripe = new Stripe(key);
 
-    // IMPORTANT: return to the edition route, not the home page
     const success = `${appUrl}${returnTo}?rid=${encodeURIComponent(rid)}&session_id={CHECKOUT_SESSION_ID}`;
     const cancel  = `${appUrl}${returnTo}?rid=${encodeURIComponent(rid)}&canceled=1`;
 
