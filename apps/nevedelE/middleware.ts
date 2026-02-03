@@ -1,44 +1,53 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = [
-  "/e/",          // edície sú verejné
-  "/api/compute", // výpočet musí byť verejný
-  "/api/stripe",  // checkout+webhook musia byť verejné
-];
-
-const PRIVATE_PREFIXES = [
-  "/builder",
-  "/editions",
-  "/",
-];
+function unauthorized() {
+  return new NextResponse("Unauthorized", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="Factory"' },
+  });
+}
 
 export function middleware(req: NextRequest) {
-  const { pathname, searchParams } = req.nextUrl;
+  const { pathname } = req.nextUrl;
 
-  // allow public prefixes
-  if (PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {
+  // PUBLIC: product pages + editions runtime
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/e/") ||
+    pathname.startsWith("/api/compute") ||
+    pathname.startsWith("/api/stripe/") ||
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/favicon") ||
+    pathname.startsWith("/assets/") ||
+    pathname.startsWith("/public/")
+  ) {
     return NextResponse.next();
   }
 
-  // only guard specific private routes (builder + editions + homepage)
-  if (!PRIVATE_PREFIXES.some(p => pathname === p || pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
+  // PRIVATE: factory/admin surface
+  const isFactory =
+    pathname.startsWith("/builder") ||
+    pathname.startsWith("/editions") ||
+    pathname.startsWith("/api/builder") ||
+    pathname.startsWith("/api/github");
 
-  const need = process.env.FACTORY_KEY;
-  if (!need) {
-    // if no key configured, fail closed for safety
-    return NextResponse.redirect(new URL("/e/demo-odomykanie", req.url));
-  }
+  if (!isFactory) return NextResponse.next();
 
-  const got = searchParams.get("key") || req.headers.get("x-factory-key");
-  if (got && got === need) return NextResponse.next();
+  const user = process.env.FACTORY_USER || "";
+  const pass = process.env.FACTORY_PASS || "";
+  if (!user || !pass) return unauthorized();
 
-  // redirect anonymous visitors to a public edition (or landing)
-  return NextResponse.redirect(new URL("/e/demo-odomykanie", req.url));
+  const auth = req.headers.get("authorization") || "";
+  if (!auth.startsWith("Basic ")) return unauthorized();
+
+  const decoded = Buffer.from(auth.slice(6), "base64").toString("utf8");
+  const [u, p] = decoded.split(":");
+
+  if (u === user && p === pass) return NextResponse.next();
+  return unauthorized();
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
