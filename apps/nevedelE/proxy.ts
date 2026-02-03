@@ -1,51 +1,57 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function unauthorized() {
-  return new NextResponse("Unauthorized", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Factory"' },
-  });
+const PUBLIC_PREFIXES = [
+  "/e/",
+  "/api/compute",
+  "/api/stripe/",
+  "/api/pay/",
+  "/_next/",
+  "/favicon.ico",
+];
+
+const PROTECTED_PREFIXES = [
+  "/builder",
+  "/list",
+  "/editions",
+  "/api/build",
+  "/api/builder",
+  "/api/github",
+  "/api/factory",
+];
+
+function isPublic(pathname: string) {
+  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 }
 
-export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+function isProtected(pathname: string) {
+  return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 
-  // PUBLIC: product pages + editions runtime
-  if (
-    pathname === "/" ||
-    pathname.startsWith("/e/") ||
-    pathname.startsWith("/api/compute") ||
-    pathname.startsWith("/api/stripe/") ||
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/assets/") ||
-    pathname.startsWith("/public/")
-  ) {
+// ✅ Next.js Turbopack proxy entrypoint (replaces middleware)
+export default function proxy(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+
+  // public product pages
+  if (isPublic(pathname) || !isProtected(pathname)) {
     return NextResponse.next();
   }
 
-  // PRIVATE: factory/admin surface
-  const isFactory =
-    pathname.startsWith("/builder") ||
-    pathname.startsWith("/editions") ||
-    pathname.startsWith("/api/builder") ||
-    pathname.startsWith("/api/github");
+  const token = (process.env.FACTORY_TOKEN || "").trim();
+  if (!token) {
+    // fail closed: if token not configured, don't expose factory
+    return new NextResponse("FACTORY_TOKEN_MISSING", { status: 401 });
+  }
 
-  if (!isFactory) return NextResponse.next();
+  const cookieOk = req.cookies.get("factory")?.value === "1";
+  const headerOk = req.headers.get("x-factory-token") === token;
 
-  const user = process.env.FACTORY_USER || "";
-  const pass = process.env.FACTORY_PASS || "";
-  if (!user || !pass) return unauthorized();
+  if (cookieOk || headerOk) return NextResponse.next();
 
-  const auth = req.headers.get("authorization") || "";
-  if (!auth.startsWith("Basic ")) return unauthorized();
-
-  const decoded = Buffer.from(auth.slice(6), "base64").toString("utf8");
-  const [u, p] = decoded.split(":");
-
-  if (u === user && p === pass) return NextResponse.next();
-  return unauthorized();
+  const url = req.nextUrl.clone();
+  url.pathname = "/factory-login";
+  url.searchParams.set("next", pathname);
+  return NextResponse.redirect(url);
 }
 
 export const config = {
