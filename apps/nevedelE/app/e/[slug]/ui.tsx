@@ -16,7 +16,7 @@ const PREPAY_CATS = 3;
 const PREPAY_ITEMS_WITH_ANSWER = 3;
 
 function makeRid(slug: string) {
-  return \\-\-\\;
+  return `${slug}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function normalizeBirthDate(s: string) {
