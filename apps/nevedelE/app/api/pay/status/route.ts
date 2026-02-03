@@ -1,46 +1,45 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { kvGet, kvSet } from "@/lib/kv";
 
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("MISSING_STRIPE_SECRET_KEY");
-  return new Stripe(key);
-}
+export const runtime = "nodejs";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2025-01-27.acacia",
+});
 
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const sessionId = url.searchParams.get("session_id");
-    const rid = url.searchParams.get("rid"); // optional, but recommended
+  const url = new URL(req.url);
+  const sessionId = url.searchParams.get("session_id") || "";
+  const rid = url.searchParams.get("rid") || "";
 
-    if (!sessionId) {
-      return NextResponse.json({ ok: false, error: "MISSING_SESSION_ID" }, { status: 400 });
+  // 1) Fast path: if rid is already paid in KV -> done (works after refresh)
+  if (rid) {
+    const cached = await kvGet<{ paid?: boolean }>(\paid:\\);
+    if (cached?.paid) return Response.json({ ok: true, paid: true, source: "kv" });
+  }
+
+  // 2) If no session_id, we can't verify via Stripe. Return whatever we know.
+  if (!sessionId) {
+    return Response.json({ ok: true, paid: false, source: "none" });
+  }
+
+  // 3) Verify Stripe session
+  try {
+    const s = await stripe.checkout.sessions.retrieve(sessionId);
+    const paid = s.payment_status === "paid" || Boolean((s as any).paid);
+
+    // Try to infer rid from Stripe metadata if not provided
+    const inferredRid =
+      rid ||
+      ((s.metadata as any)?.rid as string) ||
+      (s.client_reference_id || "");
+
+    if (paid && inferredRid) {
+      await kvSet(\paid:\\, { paid: true, ts: Date.now(), session_id: sessionId }, 60 * 60 * 24 * 30);
     }
 
-    const stripe = getStripe();
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    const paid = session.payment_status === "paid" || session.payment_status === "no_payment_required";
-
-    const sessionRid = session.metadata?.rid ?? session.client_reference_id ?? null;
-    const ridOk = !rid || (typeof sessionRid === "string" && sessionRid === rid);
-
-    return NextResponse.json(
-      {
-        ok: true,
-        paid: Boolean(paid && ridOk),
-        rid: rid ?? (typeof sessionRid === "string" ? sessionRid : null),
-        session_id: sessionId,
-      },
-      { status: 200 }
-    );
+    return Response.json({ ok: true, paid, source: "stripe", rid: inferredRid || null });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: "INTERNAL_ERROR", message: String(e?.message ?? e) },
-      { status: 500 }
-    );
+    return Response.json({ ok: false, error: e?.message || "STATUS_FAILED" }, { status: 500 });
   }
 }
