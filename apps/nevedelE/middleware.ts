@@ -1,35 +1,44 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = [
+const PUBLIC_PREFIXES = [
+  "/e/",          // edície sú verejné
+  "/api/compute", // výpočet musí byť verejný
+  "/api/stripe",  // checkout+webhook musia byť verejné
+];
+
+const PRIVATE_PREFIXES = [
   "/builder",
-  "/list",
-  "/api/build",
+  "/editions",
+  "/",
 ];
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, searchParams } = req.nextUrl;
 
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  if (!isProtected) return NextResponse.next();
-
-  const token = process.env.FACTORY_TOKEN;
-  if (!token) {
-    // fail closed: if token missing, do NOT expose factory routes
-    return new NextResponse("FACTORY_TOKEN_MISSING", { status: 401 });
+  // allow public prefixes
+  if (PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {
+    return NextResponse.next();
   }
 
-  const cookieOk = req.cookies.get("factory")?.value === "1";
-  const headerOk = req.headers.get("x-factory-token") === token;
+  // only guard specific private routes (builder + editions + homepage)
+  if (!PRIVATE_PREFIXES.some(p => pathname === p || pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
 
-  if (cookieOk || headerOk) return NextResponse.next();
+  const need = process.env.FACTORY_KEY;
+  if (!need) {
+    // if no key configured, fail closed for safety
+    return NextResponse.redirect(new URL("/e/demo-odomykanie", req.url));
+  }
 
-  const url = req.nextUrl.clone();
-  url.pathname = "/factory-login";
-  url.searchParams.set("next", pathname);
-  return NextResponse.redirect(url);
+  const got = searchParams.get("key") || req.headers.get("x-factory-key");
+  if (got && got === need) return NextResponse.next();
+
+  // redirect anonymous visitors to a public edition (or landing)
+  return NextResponse.redirect(new URL("/e/demo-odomykanie", req.url));
 }
 
 export const config = {
-  matcher: ["/builder", "/builder/:path*", "/list", "/list/:path*", "/api/build/:path*"],
+  matcher: ["/((?!_next|favicon.ico).*)"],
 };
