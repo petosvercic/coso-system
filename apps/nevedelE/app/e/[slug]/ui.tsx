@@ -3,28 +3,43 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Edition = {
-  slug?: string;
   title?: string;
-  engine?: { subject?: string; locale?: "sk" | "cz" | "en" };
+  engine?: { locale?: string };
   content?: any;
-  tasks?: any;
 };
 
 type EngineItem = { id?: string; title?: string; value?: number; text?: string };
 type EngineCategory = { key?: string; title?: string; items?: EngineItem[] };
 type EngineResult = { categories?: EngineCategory[] };
 
+const PREPAY_CATS = 3;
+const PREPAY_ITEMS_WITH_ANSWER = 3;
+
 function makeRid(slug: string) {
   return `${slug}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeBirthDate(s: string) {
+  const t = (s || "").trim();
+
+  // ISO from input[type=date] is already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
+  // Fallback: "08. 02. 1991" or "08.02.1991"
+  const m = t.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/);
+  if (m) {
+    const dd = m[1].padStart(2, "0");
+    const mm = m[2].padStart(2, "0");
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return null;
 }
 
 export default function EditionClient({ slug, edition }: { slug: string; edition: Edition }) {
   const c = edition?.content ?? {};
   const locale = edition?.engine?.locale ?? "sk";
-
-  const PREPAY_CATS = 3;
-  const PREPAY_ITEMS_WITH_ANSWER = 3;
-
   const storageKey = useMemo(() => `coso:rid:${slug}`, [slug]);
 
   const [name, setName] = useState("");
@@ -68,8 +83,10 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
   async function onCompute() {
     setErr("");
-    if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
-      setErr("Dátum narodenia musí byť YYYY-MM-DD.");
+
+    const iso = normalizeBirthDate(birthDate);
+    if (!iso) {
+      setErr("Zadaj dátum narodenia.");
       return;
     }
 
@@ -81,7 +98,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         body: JSON.stringify({
           editionSlug: slug,
           name: name.trim() ? name.trim() : undefined,
-          birthDate,
+          birthDate: iso,
           locale,
         }),
       });
@@ -135,31 +152,31 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       <p style={{ opacity: 0.75, marginTop: 0 }}>{c?.heroSubtitle ?? ""}</p>
 
       <section style={{ marginTop: 18, padding: 14, border: "1px solid #ddd" }}>
-        <h2 style={{ marginTop: 0 }}>{c?.intro?.title ?? "Úvod"}</h2>
+        <h2 style={{ marginTop: 0 }}>{c?.intro?.title ?? "Ako to funguje"}</h2>
         <p style={{ marginBottom: 0 }}>{c?.intro?.text ?? ""}</p>
       </section>
 
       <section style={{ marginTop: 18, padding: 14, border: "1px solid #ddd" }}>
-        <h2 style={{ marginTop: 0 }}>{c?.form?.title ?? "Zadaj údaje"}</h2>
+        <h2 style={{ marginTop: 0 }}>{c?.form?.title ?? "Vstup"}</h2>
 
-        <div style={{ display: "grid", gap: 10, maxWidth: 520 }}>
+        <div style={{ display: "grid", gap: 10, maxWidth: 720, gridTemplateColumns: "1fr 1fr" }}>
           <label>
             <div style={{ fontSize: 13, opacity: 0.8 }}>{c?.form?.nameLabel ?? "Meno (voliteľné)"}</div>
             <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", padding: 10 }} />
           </label>
 
           <label>
-            <div style={{ fontSize: 13, opacity: 0.8 }}>
-              {c?.form?.birthDateLabel ?? "Dátum narodenia (YYYY-MM-DD)"}
-            </div>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>{c?.form?.birthDateLabel ?? "Dátum narodenia"}</div>
             <input
+              type="date"
               value={birthDate}
               onChange={(e) => setBirthDate(e.target.value)}
-              placeholder="1990-01-01"
               style={{ width: "100%", padding: 10 }}
             />
           </label>
+        </div>
 
+        <div style={{ marginTop: 10 }}>
           <button onClick={onCompute} disabled={Boolean(busy)} style={{ padding: 12 }}>
             {c?.form?.submitLabel ?? "Vypočítať"}
           </button>
@@ -172,7 +189,6 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       {result ? (
         <section style={{ marginTop: 18, padding: 14, border: "1px solid #ddd" }}>
           <h2 style={{ marginTop: 0 }}>{paid ? "Výsledok" : (c?.result?.teaserTitle ?? "Náhľad výsledku")}</h2>
-          {!paid ? <p style={{ opacity: 0.85 }}>{c?.result?.teaserNote ?? ""}</p> : null}
 
           {visibleCats.length ? (
             <div style={{ display: "grid", gap: 14 }}>
@@ -210,20 +226,17 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
               })}
             </div>
           ) : (
-            <p style={{ color: "crimson" }}>
-              Compute vrátil výsledok bez `categories`. To znamená, že `/api/compute` ešte nerobí 5×25.
-            </p>
+            <p style={{ color: "crimson" }}>Compute vrátil výsledok bez categories.</p>
           )}
 
           {!paid ? (
             <div style={{ marginTop: 14, padding: 12, background: "#f6f6f6", border: "1px solid #e4e4e4" }}>
               <h3 style={{ marginTop: 0 }}>{c?.paywall?.headline ?? "Odomkni plnú verziu"}</h3>
               <ul>
-                {(c?.paywall?.bullets ?? []).slice(0, 3).map((b: string, idx: number) => (
+                {(c?.paywall?.bullets ?? []).slice(0, 6).map((b: string, idx: number) => (
                   <li key={idx}>{b}</li>
                 ))}
               </ul>
-              <p style={{ opacity: 0.8 }}>{c?.result?.unlockHint ?? ""}</p>
               <button onClick={onCheckout} disabled={Boolean(busy)} style={{ padding: 12 }}>
                 {c?.paywall?.cta ?? "Odomknúť"}
               </button>
