@@ -1,52 +1,38 @@
-type UpstashEnv = {
-  url: string;
-  token: string;
-};
+import { Redis } from "@upstash/redis";
 
-function getUpstash(): UpstashEnv {
-  // Vercel Storage connector niekedy vytvorí tieto:
-  const url =
-    process.env.UPSTASH_REDIS_REST_URL ||
-    process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
-    process.env.UPSTASH_REDIS_REST_KV_URL ||
-    "";
-  const token =
-    process.env.UPSTASH_REDIS_REST_TOKEN ||
-    process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||
-    process.env.UPSTASH_REDIS_REST_KV_REST_API_READ_ONLY_TOKEN ||
-    "";
-
-  if (!url || !token) {
-    throw new Error("UPSTASH_ENV_MISSING");
+function pick(...vals: (string | undefined)[]) {
+  for (const v of vals) {
+    if (v && String(v).trim()) return String(v).trim();
   }
-  return { url, token };
+  return "";
 }
 
-async function upstash(cmd: string, ...args: string[]) {
-  const { url, token } = getUpstash();
-  const u = new URL(url.replace(/\/+$/, "") + "/" + [cmd, ...args].map(encodeURIComponent).join("/"));
-  const res = await fetch(u.toString(), {
-    method: "POST",
-    headers: {
-      Authorization: \Bearer \\,
-      "Content-Type": "application/json",
-    },
-  });
-  const j = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(j?.error ?? "UPSTASH_CALL_FAILED");
-  return j;
+// Prefer explicit REST API envs (Vercel Storage integration)
+// Fallback to UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN if you used older style.
+const url = pick(
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL,
+  process.env.UPSTASH_REDIS_REST_API_URL,
+  process.env.UPSTASH_REDIS_REST_URL
+);
+
+const token = pick(
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN,
+  process.env.UPSTASH_REDIS_REST_API_TOKEN,
+  process.env.UPSTASH_REDIS_REST_TOKEN
+);
+
+export const kv = url && token ? new Redis({ url, token }) : null;
+
+export async function kvGet<T>(key: string): Promise<T | null> {
+  if (!kv) return null;
+  return (await kv.get<T>(key)) ?? null;
 }
 
-export async function kvGet(key: string): Promise<string | null> {
-  const j = await upstash("get", key);
-  // Upstash REST vracia { result: "..." } alebo { result: null }
-  return (j?.result ?? null) as any;
-}
-
-export async function kvSet(key: string, value: string, ttlSeconds?: number) {
+export async function kvSet<T>(key: string, value: T, ttlSeconds?: number) {
+  if (!kv) return;
   if (ttlSeconds && ttlSeconds > 0) {
-    await upstash("setex", key, String(ttlSeconds), value);
+    await kv.set(key, value as any, { ex: ttlSeconds });
   } else {
-    await upstash("set", key, value);
+    await kv.set(key, value as any);
   }
 }
