@@ -3,12 +3,13 @@ import path from "node:path";
 import { notFound } from "next/navigation";
 import EditionClient from "./ui";
 
+export const dynamic = "force-dynamic";
+
 function readJsonNoBom(filePath: string) {
   const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
   return JSON.parse(raw);
 }
 
-// Next 16: params can be a Promise -> await it
 export default async function EditionPage({
   params,
 }: {
@@ -20,6 +21,6 @@ export default async function EditionPage({
   const edPath = path.join(process.cwd(), "data", "editions", `${slug}.json`);
   if (!slug || !fs.existsSync(edPath)) notFound();
 
-  const ed = readJsonNoBom(edPath);
-  return <EditionClient edition={ed} />;
+  const edition = readJsonNoBom(edPath);
+  return <EditionClient slug={slug} edition={edition} />;
 }
