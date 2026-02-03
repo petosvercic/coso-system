@@ -1,47 +1,52 @@
-type KVJson = any;
+type UpstashEnv = {
+  url: string;
+  token: string;
+};
 
-function getKvEnv() {
+function getUpstash(): UpstashEnv {
+  // Vercel Storage connector niekedy vytvorí tieto:
   const url =
-    process.env.KV_REST_API_URL ||
     process.env.UPSTASH_REDIS_REST_URL ||
+    process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
+    process.env.UPSTASH_REDIS_REST_KV_URL ||
     "";
   const token =
-    process.env.KV_REST_API_TOKEN ||
     process.env.UPSTASH_REDIS_REST_TOKEN ||
+    process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||
+    process.env.UPSTASH_REDIS_REST_KV_REST_API_READ_ONLY_TOKEN ||
     "";
 
+  if (!url || !token) {
+    throw new Error("UPSTASH_ENV_MISSING");
+  }
   return { url, token };
 }
 
-async function kvFetch(path: string, init?: RequestInit) {
-  const { url, token } = getKvEnv();
-  if (!url || !token) return null;
-
-  const res = await fetch(\\\\, {
-    ...init,
+async function upstash(cmd: string, ...args: string[]) {
+  const { url, token } = getUpstash();
+  const u = new URL(url.replace(/\/+$/, "") + "/" + [cmd, ...args].map(encodeURIComponent).join("/"));
+  const res = await fetch(u.toString(), {
+    method: "POST",
     headers: {
       Authorization: \Bearer \\,
-      ...(init?.headers || {}),
+      "Content-Type": "application/json",
     },
-    cache: "no-store",
   });
-
   const j = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(j?.error ?? "UPSTASH_CALL_FAILED");
   return j;
 }
 
-export async function kvGet<T = KVJson>(key: string): Promise<T | null> {
-  const j = await kvFetch(\/get/\\);
-  if (!j) return null;
-  // Upstash returns: { result: "..." } or { result: null }
-  const raw = j.result;
-  if (raw == null) return null;
-  try { return JSON.parse(raw) as T; } catch { return raw as T; }
+export async function kvGet(key: string): Promise<string | null> {
+  const j = await upstash("get", key);
+  // Upstash REST vracia { result: "..." } alebo { result: null }
+  return (j?.result ?? null) as any;
 }
 
-export async function kvSet(key: string, value: any, ttlSeconds?: number): Promise<boolean> {
-  const v = typeof value === "string" ? value : JSON.stringify(value);
-  const ttl = ttlSeconds ? \?EX=\\ : "";
-  const j = await kvFetch(\/set/\/\\\, { method: "POST" });
-  return Boolean(j && (j.result === "OK" || j.result === true));
+export async function kvSet(key: string, value: string, ttlSeconds?: number) {
+  if (ttlSeconds && ttlSeconds > 0) {
+    await upstash("setex", key, String(ttlSeconds), value);
+  } else {
+    await upstash("set", key, value);
+  }
 }

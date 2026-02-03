@@ -1,45 +1,53 @@
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { kvGet, kvSet } from "@/lib/kv";
 
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-01-27.acacia",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", { apiVersion: "2025-01-27.acacia" });
+
+const KEY = (rid: string) => \paid:\\;
+const TTL = 60 * 60 * 24 * 30; // 30 dní
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const sessionId = url.searchParams.get("session_id") || "";
-  const rid = url.searchParams.get("rid") || "";
-
-  // 1) Fast path: if rid is already paid in KV -> done (works after refresh)
-  if (rid) {
-    const cached = await kvGet<{ paid?: boolean }>(\paid:\\);
-    if (cached?.paid) return Response.json({ ok: true, paid: true, source: "kv" });
-  }
-
-  // 2) If no session_id, we can't verify via Stripe. Return whatever we know.
-  if (!sessionId) {
-    return Response.json({ ok: true, paid: false, source: "none" });
-  }
-
-  // 3) Verify Stripe session
   try {
-    const s = await stripe.checkout.sessions.retrieve(sessionId);
-    const paid = s.payment_status === "paid" || Boolean((s as any).paid);
+    const url = new URL(req.url);
+    const sessionId = url.searchParams.get("session_id");
+    const rid = url.searchParams.get("rid") || "";
 
-    // Try to infer rid from Stripe metadata if not provided
-    const inferredRid =
-      rid ||
-      ((s.metadata as any)?.rid as string) ||
-      (s.client_reference_id || "");
-
-    if (paid && inferredRid) {
-      await kvSet(\paid:\\, { paid: true, ts: Date.now(), session_id: sessionId }, 60 * 60 * 24 * 30);
+    if (!rid && !sessionId) {
+      return NextResponse.json({ ok: false, error: "MISSING_RID_OR_SESSION_ID" }, { status: 400 });
     }
 
-    return Response.json({ ok: true, paid, source: "stripe", rid: inferredRid || null });
+    // 1) Refresh flow: iba rid -> pozri do KV
+    if (!sessionId && rid) {
+      const v = await kvGet(KEY(rid));
+      const paid = v === "1";
+      return NextResponse.json({ ok: true, paid });
+    }
+
+    // 2) Return from Stripe: session_id (+ rid) -> over a zapíš do KV
+    if (!sessionId) {
+      return NextResponse.json({ ok: false, error: "MISSING_SESSION_ID" }, { status: 400 });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const paid =
+      session.payment_status === "paid" ||
+      (session.status === "complete" && session.payment_status !== "unpaid");
+
+    // rid z parametra alebo zo session metadata/client_reference_id
+    const effectiveRid =
+      rid ||
+      (session.client_reference_id ?? "") ||
+      (session.metadata?.rid ?? "");
+
+    if (paid && effectiveRid) {
+      await kvSet(KEY(effectiveRid), "1", TTL);
+    }
+
+    return NextResponse.json({ ok: true, paid, rid: effectiveRid || null });
   } catch (e: any) {
-    return Response.json({ ok: false, error: e?.message || "STATUS_FAILED" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
   }
 }

@@ -16,35 +16,28 @@ const PREPAY_CATS = 3;
 const PREPAY_ITEMS_WITH_ANSWER = 3;
 
 function makeRid(slug: string) {
-  return `${slug}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return \\-\-\\;
 }
 
 function normalizeBirthDate(s: string) {
   const t = (s || "").trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  const m = t.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/);
+  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(t)) return t;
+  const m = t.match(/^(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\d{4})$/);
   if (m) {
     const dd = m[1].padStart(2, "0");
     const mm = m[2].padStart(2, "0");
     const yyyy = m[3];
-    return `${yyyy}-${mm}-${dd}`;
+    return \\-\-\\;
   }
   return null;
 }
 
-export default function EditionClient({
-  slug,
-  edition,
-}: {
-  slug: string;
-  edition: Edition;
-}) {
+export default function EditionClient({ slug, edition }: { slug: string; edition: Edition }) {
   const c = edition?.content ?? {};
   const locale = edition?.engine?.locale ?? "sk";
 
-  const ridKey = useMemo(() => `coso:rid:${slug}`, [slug]);
-  const inputKey = useMemo(() => `coso:input:${slug}`, [slug]);
-  const autoComputedRef = useRef(false);
+  const ridKey = useMemo(() => \coso:rid:\\, [slug]);
+  const inputKey = useMemo(() => \coso:input:\\, [slug]);
 
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -53,6 +46,11 @@ export default function EditionClient({
   const [paid, setPaid] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState("");
+
+  const autoComputedRef = useRef(false);
+
+  const resultKey = useMemo(() => (rid ? \coso:result:\\ : ""), [rid]);
+  const paidKey = useMemo(() => (rid ? \coso:paid:\\ : ""), [rid]);
 
   // RID init
   useEffect(() => {
@@ -73,7 +71,39 @@ export default function EditionClient({
     } catch {}
   }, [inputKey]);
 
-  // Stripe return
+  // restore cached result + paid from localStorage (fast path)
+  useEffect(() => {
+    if (!rid) return;
+
+    try {
+      const pr = paidKey ? localStorage.getItem(paidKey) : null;
+      if (pr === "1") setPaid(true);
+    } catch {}
+
+    try {
+      if (!resultKey) return;
+      const raw = localStorage.getItem(resultKey);
+      if (!raw) return;
+      const j = JSON.parse(raw);
+      if (j && typeof j === "object") setResult(j);
+    } catch {}
+  }, [rid, paidKey, resultKey]);
+
+  // server truth: check KV via /api/pay/status?rid=...
+  useEffect(() => {
+    if (!rid) return;
+    fetch(\/api/pay/status?rid=\\)
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.ok && j?.paid) {
+          setPaid(true);
+          try { localStorage.setItem(paidKey, "1"); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [rid, paidKey]);
+
+  // Stripe return (session_id present)
   useEffect(() => {
     const url = new URL(window.location.href);
     const sessionId = url.searchParams.get("session_id");
@@ -84,14 +114,13 @@ export default function EditionClient({
     if (!effectiveRid) return;
 
     setBusy("Overujem platbu…");
-    fetch(
-      `/api/pay/status?session_id=${encodeURIComponent(
-        sessionId
-      )}&rid=${encodeURIComponent(effectiveRid)}`
-    )
+    fetch(\/api/pay/status?session_id=\&rid=\\)
       .then((r) => r.json())
       .then((j) => {
-        if (j?.ok && j?.paid) setPaid(true);
+        if (j?.ok && j?.paid) {
+          setPaid(true);
+          try { localStorage.setItem(\coso:paid:\\, "1"); } catch {}
+        }
       })
       .finally(() => {
         setBusy(null);
@@ -102,26 +131,18 @@ export default function EditionClient({
       });
   }, [rid, ridKey]);
 
-  // auto compute after payment
+  // auto compute after paid (if we have inputs and no result)
   useEffect(() => {
     if (!paid) return;
     if (result) return;
     if (busy) return;
     if (autoComputedRef.current) return;
 
-    try {
-      const raw = localStorage.getItem(inputKey);
-      if (!raw) return;
-      const j = JSON.parse(raw);
-      const n = String(j?.name ?? "");
-      const d = String(j?.birthDate ?? "");
-      if (!d) return;
+    const iso = normalizeBirthDate(birthDate);
+    if (!iso) return;
 
-      setName(n);
-      setBirthDate(d);
-      autoComputedRef.current = true;
-      onCompute();
-    } catch {}
+    autoComputedRef.current = true;
+    onCompute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paid]);
 
@@ -134,10 +155,7 @@ export default function EditionClient({
     }
 
     try {
-      localStorage.setItem(
-        inputKey,
-        JSON.stringify({ name: name ?? "", birthDate: birthDate ?? "" })
-      );
+      localStorage.setItem(inputKey, JSON.stringify({ name: name ?? "", birthDate: birthDate ?? "" }));
     } catch {}
 
     setBusy("Počítam…");
@@ -155,7 +173,11 @@ export default function EditionClient({
 
       const j = await res.json().catch(() => null);
       if (!res.ok || !j?.ok) throw new Error(j?.error ?? "COMPUTE_FAILED");
+
       setResult(j.result as EngineResult);
+      try {
+        if (resultKey) localStorage.setItem(resultKey, JSON.stringify(j.result));
+      } catch {}
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     } finally {
@@ -167,34 +189,27 @@ export default function EditionClient({
     setErr("");
 
     try {
-      localStorage.setItem(
-        inputKey,
-        JSON.stringify({ name: name ?? "", birthDate: birthDate ?? "" })
-      );
+      localStorage.setItem(inputKey, JSON.stringify({ name: name ?? "", birthDate: birthDate ?? "" }));
     } catch {}
 
     const effectiveRid = rid || localStorage.getItem(ridKey) || makeRid(slug);
     localStorage.setItem(ridKey, effectiveRid);
     setRid(effectiveRid);
 
-    document
-      .getElementById("paywall-box")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("paywall-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
     setBusy("Presmerúvam na platbu…");
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          rid: effectiveRid,
-          returnTo: `/e/${slug}`,
-        }),
+        body: JSON.stringify({ rid: effectiveRid, returnTo: \/e/\\ }),
       });
 
       const j = await res.json().catch(() => null);
       if (!res.ok || !j?.ok || !j?.url) {
-        throw new Error(j?.error ?? "CHECKOUT_FAILED");
+        const msg = (j?.error ?? "CHECKOUT_FAILED") + (j?.message ? (": " + j.message) : "");
+        throw new Error(msg);
       }
       window.location.href = j.url;
     } catch (e: any) {
@@ -207,66 +222,106 @@ export default function EditionClient({
   const visibleCats = paid ? cats : cats.slice(0, PREPAY_CATS);
 
   return (
-    <main style={{ padding: 24, maxWidth: 980, fontFamily: "system-ui" }}>
-      <p>
+    <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 980 }}>
+      <p style={{ marginBottom: 12 }}>
         <a href="/list">späť na edície</a>
       </p>
 
-      <h1>{edition?.title ?? slug}</h1>
-      <p>{c?.heroSubtitle ?? ""}</p>
+      <h1 style={{ fontSize: 34, marginBottom: 8 }}>{edition?.title ?? slug}</h1>
+      <p style={{ opacity: 0.75, marginTop: 0 }}>{c?.heroSubtitle ?? ""}</p>
 
-      <section>
-        <h2>{c?.form?.title ?? "Vstup"}</h2>
-
-        <input
-          placeholder="Meno (voliteľné)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          type="date"
-          value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
-        />
-
-        <button onClick={onCompute} disabled={!!busy}>
-          Vypočítať
-        </button>
-
-        {err && <p style={{ color: "crimson" }}>{err}</p>}
-        {busy && <p>{busy}</p>}
+      <section style={{ marginTop: 18, padding: 14, border: "1px solid #ddd" }}>
+        <h2 style={{ marginTop: 0 }}>{c?.intro?.title ?? "Ako to funguje"}</h2>
+        <p style={{ marginBottom: 0 }}>{c?.intro?.text ?? ""}</p>
       </section>
 
-      {result && (
-        <section>
-          <h2>{paid ? "Výsledok" : "Náhľad"}</h2>
+      <section style={{ marginTop: 18, padding: 14, border: "1px solid #ddd" }}>
+        <h2 style={{ marginTop: 0 }}>{c?.form?.title ?? "Vstup"}</h2>
 
-          {visibleCats.map((cat, ci) => (
-            <div key={ci}>
-              <h3>{cat.title}</h3>
-              {(cat.items ?? []).map((it, ti) => {
-                const show = paid || ti < PREPAY_ITEMS_WITH_ANSWER;
+        <div style={{ display: "grid", gap: 10, maxWidth: 720, gridTemplateColumns: "1fr 1fr" }}>
+          <label>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>{c?.form?.nameLabel ?? "Meno (voliteľné)"}</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", padding: 10 }} />
+          </label>
+
+          <label>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>{c?.form?.birthDateLabel ?? "Dátum narodenia"}</div>
+            <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} style={{ width: "100%", padding: 10 }} />
+          </label>
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <button onClick={onCompute} disabled={Boolean(busy)} style={{ padding: 12 }}>
+            {c?.form?.submitLabel ?? "Vypočítať"}
+          </button>
+        </div>
+
+        {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
+        {busy ? <p style={{ opacity: 0.8 }}>{busy}</p> : null}
+      </section>
+
+      {result ? (
+        <section style={{ marginTop: 18, padding: 14, border: "1px solid #ddd" }}>
+          <h2 style={{ marginTop: 0 }}>{paid ? "Výsledok" : (c?.result?.teaserTitle ?? "Náhľad")}</h2>
+
+          {visibleCats.length ? (
+            <div style={{ display: "grid", gap: 14 }}>
+              {visibleCats.map((cat, ci) => {
+                const items = Array.isArray(cat.items) ? cat.items : [];
                 return (
-                  <div key={ti}>
-                    <strong>{it.title}</strong>{" "}
-                    {show ? it.text : "🔒 Zamknuté"}
+                  <div key={cat.key ?? ci} style={{ padding: 12, border: "1px solid #eee" }}>
+                    <div style={{ fontSize: 13, opacity: 0.7 }}>{cat.title ?? \Kategória \\}</div>
+
+                    <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                      {items.map((it, ti) => {
+                        const showAnswer = paid || ti < PREPAY_ITEMS_WITH_ANSWER;
+                        return (
+                          <div key={it.id ?? \\-\\} style={{ padding: 10, border: "1px solid #f0f0f0" }}>
+                            <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                              <div style={{ fontWeight: 700 }}>{it.title ?? \Task \\}</div>
+                              {typeof it.value === "number" ? (
+                                <div style={{ opacity: 0.7, fontSize: 13 }}>
+                                  <strong>Hodnota:</strong> {it.value}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            {showAnswer ? (
+                              <p style={{ margin: "8px 0 0" }}>{it.text ?? "—"}</p>
+                            ) : (
+                              <p style={{ margin: "8px 0 0", opacity: 0.6 }}>🔒 Zamknuté (odkryje sa po platbe)</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
             </div>
-          ))}
-
-          {!paid && (
-            <div id="paywall-box">
-              <button onClick={onCheckout} disabled={!!busy}>
-                Odomknúť
-              </button>
-            </div>
+          ) : (
+            <p style={{ color: "crimson" }}>Compute vrátil výsledok bez categories.</p>
           )}
-        </section>
-      )}
 
-      <p style={{ fontSize: 12, opacity: 0.6 }}>
+          {!paid ? (
+            <div id="paywall-box" style={{ marginTop: 14, padding: 12, background: "#f6f6f6", border: "1px solid #e4e4e4" }}>
+              <h3 style={{ marginTop: 0 }}>{c?.paywall?.headline ?? "Odomkni celý výsledok"}</h3>
+              <ul>
+                {(c?.paywall?.bullets ?? []).slice(0, 8).map((b: string, idx: number) => (
+                  <li key={idx}>{b}</li>
+                ))}
+              </ul>
+              <button onClick={onCheckout} disabled={Boolean(busy)} style={{ padding: 12 }}>
+                {c?.paywall?.cta ?? "Odomknúť"}
+              </button>
+              {busy ? <p style={{ marginTop: 10, opacity: 0.8 }}>{busy}</p> : null}
+              {err ? <p style={{ marginTop: 10, color: "crimson" }}>{err}</p> : null}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <p style={{ marginTop: 18, opacity: 0.6, fontSize: 12 }}>
         debug: rid=<code>{rid}</code> | paid=<code>{String(paid)}</code>
       </p>
     </main>
