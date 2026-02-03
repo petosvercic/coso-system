@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_PREFIXES = [
-  "/e/",
+  
+  "/api/factory/login","/e/",
   "/api/compute",
   "/api/stripe/",
   "/api/pay/",
@@ -31,6 +32,12 @@ function isProtected(pathname: string) {
 // ✅ Next.js Turbopack proxy entrypoint (replaces middleware)
 export default function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
+
+// ALLOW_FACTORY_LOGIN: login endpoint musí byť verejný, inak sa nikdy nevytvorí cookie
+if (pathname === "/api/factory/login") {
+  return NextResponse.next();
+}
+// ALLOW_FACTORY_LOGIN
 
   // public product pages
   if (isPublic(pathname) || !isProtected(pathname)) {
