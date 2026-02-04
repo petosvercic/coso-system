@@ -7,15 +7,19 @@ type Edition = {
   engine?: { locale?: string };
 };
 
+type EngineItem = { id: string; title: string; value?: number; text?: string };
+
+type EngineCategory = {
+  id: string;
+  title: string;
+  items?: Array<EngineItem | null> | null;
+};
+
 type EngineResult = {
   ok?: boolean;
   rid?: string;
   result?: {
-    categories?: Array<{
-      id: string;
-      title: string;
-      items?: Array<{ id: string; title: string; value?: number; text?: string }>;
-    }>;
+    categories?: Array<EngineCategory | null> | null;
   };
   error?: string;
 };
@@ -169,8 +173,8 @@ export function EditionUI({ slug, edition }: { slug: string; edition: Edition })
   }
 
   const cats = useMemo(() => {
-    const c = result?.result?.categories || [];
-    return c;
+    const raw = result?.result?.categories || [];
+    return raw.filter((cat): cat is EngineCategory => Boolean(cat && typeof cat.id === "string"));
   }, [result]);
 
   const TEASER_CATS = 3; // koľko kategórií ukážeš pred paywall
@@ -207,7 +211,7 @@ export function EditionUI({ slug, edition }: { slug: string; edition: Edition })
             <div key={cat.id} style={{ margin: "18px 0" }}>
               <h2 style={{ fontSize: 24, margin: "0 0 8px 0" }}>{cat.title}</h2>
 
-              {(cat.items || []).map((it, idx) => {
+              {(Array.isArray(cat.items) ? cat.items : []).filter((it): it is EngineItem => Boolean(it && it.id)).map((it, idx) => {
                 const locked = !paid && idx >= TEASER_ITEMS;
                 if (locked) return null;
 
