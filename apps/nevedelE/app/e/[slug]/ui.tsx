@@ -2,260 +2,241 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Edition = {
-  title?: string;
-  engine?: { locale?: string };
+type EngineInput = {
+  subject?: { name?: string; birthDate?: string };
 };
 
 type EngineResult = {
-  ok?: boolean;
-  rid?: string;
-  result?: {
-    categories?: Array<{
-      id: string;
-      title: string;
-      items?: Array<{ id: string; title: string; value?: number; text?: string }>;
+  categories?: Array<{
+    id?: string;
+    title?: string;
+    items?: Array<{
+      id?: string;
+      title?: string;
+      value?: number;
+      text?: string;
     }>;
-  };
-  error?: string;
+  }>;
 };
 
-type SavedRun = {
-  rid: string;
-  slug: string;
-  name: string;
-  birthDate: string;
-  result: EngineResult | null;
-  ts: number;
+type Edition = {
+  title?: string;
+  engine?: { subject?: string; locale?: string };
+  content?: any;
 };
 
-const LS_KEY = (rid: string) => `coso:run:${rid}`;
+const TEASER_CATS = 3;
+const TEASER_ITEMS = 3;
 
-function makeRid(slug: string) {
-  return `${slug}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+function KEY_INPUT(rid: string) {
+  return `coso:input:${rid}`;
+}
+
+function safeJsonParse<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch (_err) {
+    return null;
+  }
 }
 
 function normalizeBirthDate(s: string) {
-  // expects yyyy-mm-dd (input[type=date])
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
-  if (!m) return null;
-  return `${m[1]}-${m[2]}-${m[3]}`;
+  // podpor: "YYYY-MM-DD" alebo "DD. MM. YYYY" (z inputu)
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (iso.test(s)) return s;
+
+  const m = s.match(/^\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})\s*$/);
+  if (m) {
+    const dd = m[1].padStart(2, "0");
+    const mm = m[2].padStart(2, "0");
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return null;
 }
 
-export function EditionUI({ slug, edition }: { slug: string; edition: Edition }) {
-  const [name, setName] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [rid, setRid] = useState<string | null>(null);
+function teaserOf(result: EngineResult | null): EngineResult | null {
+  if (!result?.categories?.length) return result;
+  const cats = result.categories.slice(0, TEASER_CATS).map((c) => ({
+    ...c,
+    items: (c.items ?? []).slice(0, TEASER_ITEMS),
+  }));
+  return { ...result, categories: cats };
+}
 
+async function fetchEdition(slug: string): Promise<Edition> {
+  const res = await fetch(`/api/edition?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`edition fetch failed (${res.status})`);
+  return res.json();
+}
+
+async function compute(slug: string, name: string, birthDateIso: string): Promise<EngineResult> {
+  const body = {
+    slug,
+    subject: { name, birthDate: birthDateIso },
+  };
+  const res = await fetch(`/api/compute`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`compute failed (${res.status}) ${msg}`);
+  }
+  return res.json();
+}
+
+export default function EditionUI({ slug, rid }: { slug: string; rid: string }) {
+  const [edition, setEdition] = useState<Edition | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [name, setName] = useState("");
+  const [birth, setBirth] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [result, setResult] = useState<EngineResult | null>(null);
   const [paid, setPaid] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
 
-  // --- restore rid from URL or create one (keeps it stable across refresh)
+  // načítaj edíciu + prefill inputov z localStorage
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const urlRid = url.searchParams.get("rid");
-    const effectiveRid = urlRid || makeRid(slug);
-
-    if (!urlRid) {
-      url.searchParams.set("rid", effectiveRid);
-      window.history.replaceState({}, "", url.toString());
-    }
-    setRid(effectiveRid);
-
-    // restore saved run (inputs + result)
-    try {
-      const raw = localStorage.getItem(LS_KEY(effectiveRid));
-      if (raw) {
-        const saved = JSON.parse(raw) as SavedRun;
-        if (saved?.birthDate) setBirthDate(saved.birthDate);
-        if (typeof saved?.name === "string") setName(saved.name);
-        if (saved?.result) setResult(saved.result);
-      }
-    } catch {}
-  }, [slug]);
-
-  // --- helper: persist state to localStorage
-  function persist(next: Partial<SavedRun>) {
-    if (!rid) return;
-    try {
-      const raw = localStorage.getItem(LS_KEY(rid));
-      const prev = raw ? (JSON.parse(raw) as SavedRun) : null;
-      const merged: SavedRun = {
-        rid,
-        slug,
-        name: prev?.name ?? name,
-        birthDate: prev?.birthDate ?? birthDate,
-        result: prev?.result ?? result,
-        ts: Date.now(),
-        ...prev,
-        ...next,
-      };
-      localStorage.setItem(LS_KEY(rid), JSON.stringify(merged));
-    } catch {}
-  }
-
-  // --- verify paid on:
-  // A) return from Stripe (session_id present)
-  // B) refresh (rid only)
-  useEffect(() => {
-    if (!rid) return;
-
-    const url = new URL(window.location.href);
-    const sessionId = url.searchParams.get("session_id");
-
-    async function run() {
+    let mounted = true;
+    (async () => {
       try {
-        if (sessionId) {
-          const r = await fetch(`/api/pay/status?rid=${encodeURIComponent(rid)}&session_id=${encodeURIComponent(sessionId)}`, {
-            cache: "no-store",
-          });
-          const j = await r.json();
-          if (j?.paid) setPaid(true);
+        const ed = await fetchEdition(slug);
+        if (!mounted) return;
+        setEdition(ed);
 
-          // remove session_id from URL (so refresh doesn't re-verify forever)
-          url.searchParams.delete("session_id");
-          window.history.replaceState({}, "", url.toString());
-        } else {
-          const r = await fetch(`/api/pay/status?rid=${encodeURIComponent(rid)}`, { cache: "no-store" });
-          const j = await r.json();
-          if (j?.paid) setPaid(true);
-        }
-      } catch {
-        // ignore, user can still proceed
+        // prefill z localStorage (ak existuje)
+        const saved = safeJsonParse<EngineInput>(localStorage.getItem(KEY_INPUT(rid)));
+        const preName = saved?.subject?.name ?? "";
+        const preBirth = saved?.subject?.birthDate ?? "";
+        setName(preName);
+
+        // ak uložené bolo ISO, zobraz to v inpute ako ISO (užívateľ môže prepnúť)
+        setBirth(preBirth);
+      } catch (e: any) {
+        if (!mounted) return;
+        setError(e?.message ?? "Chyba pri načítaní edície.");
       }
-    }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [slug, rid]);
 
-    run();
-  }, [rid]);
+  // zisti pay status (server rozhodne podľa rid + slug)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/pay/status?rid=${encodeURIComponent(rid)}&slug=${encodeURIComponent(slug)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { paid?: boolean };
+        if (!mounted) return;
+        setPaid(Boolean(data?.paid));
+      } catch {
+        // ignorujeme, nech page aspoň žije
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [rid, slug]);
 
-  async function compute() {
-    setErr(null);
-    if (!rid) return;
+  const visibleResult = useMemo(() => {
+    if (!result) return null;
+    return paid ? result : teaserOf(result);
+  }, [paid, result]);
 
-    const bd = normalizeBirthDate(birthDate);
-    if (!bd) {
-      setErr("Zadaj dátum narodenia.");
+  async function onCompute() {
+    setError(null);
+
+    const birthIso = normalizeBirthDate(birth);
+    if (!birthIso) {
+      setError('Zadaj dátum ako "YYYY-MM-DD" alebo "DD. MM. YYYY".');
       return;
     }
 
+    // ulož input (aby paywall po návrate vedel čo počítal)
+    const input: EngineInput = { subject: { name: name.trim() || undefined, birthDate: birthIso } };
+    localStorage.setItem(KEY_INPUT(rid), JSON.stringify(input));
+
     setLoading(true);
     try {
-      persist({ name, birthDate: bd });
-
-      const res = await fetch("/api/compute", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          rid,
-          subject: { name: name || undefined, birthDate: bd },
-          edition: { slug },
-        }),
-      });
-
-      const json = (await res.json()) as EngineResult;
-      setResult(json);
-      persist({ result: json });
-
-      if (!json?.ok) {
-        setErr(json?.error || "Compute failed");
-      }
+      const r = await compute(slug, name.trim(), birthIso);
+      setResult(r);
     } catch (e: any) {
-      setErr(String(e?.message ?? e));
+      setError(e?.message ?? "Compute zlyhal.");
     } finally {
       setLoading(false);
     }
   }
 
-  const cats = useMemo(() => {
-    const c = result?.result?.categories || [];
-    return c;
-  }, [result]);
-
-  const TEASER_CATS = 3; // koľko kategórií ukážeš pred paywall
-  const TEASER_ITEMS = 3; // koľko itemov v kategórii ukážeš pred paywall
-
   return (
-    <main style={{ maxWidth: 920, margin: "40px auto", padding: "0 16px", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" }}>
-      <h1 style={{ fontSize: 44, margin: "0 0 16px 0" }}>{edition?.title || "Edícia"}</h1>
+    <main style={{ padding: 32, fontFamily: "system-ui, sans-serif" }}>
+      <h1 style={{ fontSize: 44, margin: "0 0 8px" }}>{edition?.title ?? "Edícia"}</h1>
+      <p style={{ marginTop: 0, opacity: 0.7 }}>
+        {paid ? "Odomknuté" : "Ukážka pred paywallom"}
+      </p>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 18 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 18 }}>
         <input
           placeholder="Meno"
           value={name}
-          onChange={(e) => { setName(e.target.value); persist({ name: e.target.value }); }}
-          style={{ padding: "6px 8px" }}
+          onChange={(e) => setName(e.target.value)}
+          style={{ padding: 6 }}
         />
         <input
-          type="date"
-          value={birthDate}
-          onChange={(e) => { setBirthDate(e.target.value); persist({ birthDate: e.target.value }); }}
-          style={{ padding: "6px 8px" }}
+          placeholder="dd. mm. rrrr"
+          value={birth}
+          onChange={(e) => setBirth(e.target.value)}
+          style={{ padding: 6 }}
         />
-        <button onClick={compute} disabled={loading} style={{ padding: "6px 12px", cursor: "pointer" }}>
+        <button onClick={onCompute} disabled={loading} style={{ padding: "6px 12px" }}>
           {loading ? "Počítam..." : "Vypočítať"}
         </button>
       </div>
 
-      {err ? <div style={{ color: "crimson", marginBottom: 14 }}>{err}</div> : null}
+      {error && (
+        <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>
+      )}
 
-      {/* RESULTS */}
-      {cats.length > 0 ? (
-        <section>
-          {(paid ? cats : cats.slice(0, TEASER_CATS)).map((cat) => (
-            <div key={cat.id} style={{ margin: "18px 0" }}>
-              <h2 style={{ fontSize: 24, margin: "0 0 8px 0" }}>{cat.title}</h2>
-
-              {(cat.items || []).map((it, idx) => {
-                const locked = !paid && idx >= TEASER_ITEMS;
-                if (locked) return null;
-
-                return (
-                  <div key={it.id} style={{ margin: "10px 0 14px 0" }}>
-                    <div style={{ fontWeight: 700 }}>{it.title}</div>
-                    <div style={{ opacity: 0.9, lineHeight: 1.5 }}>{it.text}</div>
-                  </div>
-                );
-              })}
-
-              {!paid && (cat.items?.length || 0) > TEASER_ITEMS ? (
-                <div style={{ opacity: 0.6, fontStyle: "italic" }}>
-                  … ďalšie položky sú za paywallom
-                </div>
-              ) : null}
+      {visibleResult && (
+        <section style={{ marginTop: 24 }}>
+          {(visibleResult.categories ?? []).map((c, i) => (
+            <div key={c.id ?? i} style={{ marginBottom: 18 }}>
+              <h2 style={{ margin: "0 0 6px" }}>{c.title ?? c.id ?? "Kategória"}</h2>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {(c.items ?? []).map((it, j) => (
+                  <li key={it.id ?? j} style={{ marginBottom: 8 }}>
+                    <b>{it.title ?? it.id ?? "Item"}</b>
+                    {typeof it.value === "number" ? <> (score: {it.value})</> : null}
+                    <div style={{ opacity: 0.85 }}>{it.text}</div>
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
-        </section>
-      ) : null}
 
-      {/* PAYWALL CTA */}
-      {result?.ok && !paid ? (
-        <section style={{ marginTop: 22, padding: 14, border: "1px solid #ddd", borderRadius: 10 }}>
-          <div style={{ fontWeight: 800, marginBottom: 10 }}>
-            Chceš plné výsledky?
-          </div>
-          <form
-            action="/api/stripe/checkout"
-            method="POST"
-            onSubmit={(e) => {
-              // keep saved state right before redirect
-              persist({ name, birthDate: birthDate });
-            }}
-          >
-            <input type="hidden" name="rid" value={rid || ""} />
-            <input type="hidden" name="slug" value={slug} />
-            <button type="submit" style={{ padding: "8px 14px", cursor: "pointer" }}>
-              Pokračovať na platbu
-            </button>
-          </form>
+          {!paid && (
+            <div style={{ marginTop: 16, padding: 12, border: "1px solid #ddd", borderRadius: 10 }}>
+              <b>Pokračovanie je zamknuté.</b>
+              <div style={{ opacity: 0.75, marginTop: 6 }}>
+                Po odomknutí sa zobrazí celý obsah a po refreshi to ostane odomknuté.
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <a href={`/api/stripe/checkout?rid=${encodeURIComponent(rid ?? "")}&slug=${encodeURIComponent(slug)}`}>
+                  Pokračovať na platbu
+                </a>
+              </div>
+            </div>
+          )}
         </section>
-      ) : null}
-
-      {/* DEBUG (keep it small, not the whole JSON dump) */}
-      <div style={{ marginTop: 18, opacity: 0.5, fontSize: 12 }}>
-        debug: rid={rid} | paid={String(paid)}
-      </div>
+      )}
     </main>
   );
 }
