@@ -37,7 +37,7 @@ function makeRid(slug: string) {
 
 function normalizeBirthDate(s: string) {
   // expects yyyy-mm-dd (input[type=date])
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  const m = /^\d{4}-\d{2}-\d{2}$/.exec(s.trim());
   if (!m) return null;
   return `${m[1]}-${m[2]}-${m[3]}`;
 }
@@ -217,7 +217,7 @@ export function EditionUI({ slug, edition }: { slug: string; edition: Edition })
                     <div style={{ opacity: 0.9, lineHeight: 1.5 }}>{it.text}</div>
                   </div>
                 );
-              })}
+              }))}
 
               {!paid && (cat.items?.length || 0) > TEASER_ITEMS ? (
                 <div style={{ opacity: 0.6, fontStyle: "italic" }}>
@@ -239,12 +239,14 @@ export function EditionUI({ slug, edition }: { slug: string; edition: Edition })
             action="/api/stripe/checkout"
             method="POST"
             onSubmit={(e) => {
-              // keep saved state right before redirect
-              persist({ name, birthDate: birthDate });
+              // keep saved state right before redirect (persist everything: name, birthDate, result)
+              persist({});
             }}
           >
             <input type="hidden" name="rid" value={rid || ""} />
             <input type="hidden" name="slug" value={slug} />
+            {/* New hidden input for returnTo */}
+            <input type="hidden" name="returnTo" value={`/e/${slug}`} />
             <button type="submit" style={{ padding: "8px 14px", cursor: "pointer" }}>
               Pokračovať na platbu
             </button>
