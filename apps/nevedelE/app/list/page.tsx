@@ -1,12 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
+
 type EditionIndexEntry = {
   slug: string;
   title: string;
   createdAt?: string;
-import fs from "node:fs";
-import path from "node:path";
 
 type EditionIndexEntry = { slug: string; title: string; createdAt?: string };
 

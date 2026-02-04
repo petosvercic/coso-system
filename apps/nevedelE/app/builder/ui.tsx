@@ -152,7 +152,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
           <div className="mt-2 flex flex-wrap gap-3">
             <button
               className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
-              onClick={/* onCopyPrompt */}
+              onClick={() => {}}
             >
               Copy prompt
             </button>
@@ -187,7 +187,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
             </button>
             <button
               className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
-              onClick={/* onDispatch */}
+              onClick={() => {}}
             >
               Dispatch build
             </button>
