@@ -3,9 +3,7 @@ import { kvGet, kvSet } from "../../../../lib/kv";
 
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2026-01-28.clover",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
 const TTL = 60 * 60 * 24 * 30; // 30 dní
 const KEY = (rid: string) => `paid:${rid}`;
