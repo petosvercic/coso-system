@@ -1,5 +1,4 @@
 "use client";
-
 import { useMemo, useState } from "react";
 
 type EditionIndexEntry = { slug: string; title: string; createdAt?: string };
@@ -74,10 +73,8 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
   const basePrompt = useMemo(() => buildPrompt(editions), [editions]);
   const [prompt, setPrompt] = useState(basePrompt);
   const [editionJson, setEditionJson] = useState("");
-  const [status, setStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({
-    kind: "idle",
-    msg: "",
-  });
+  const [status, setStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" });
+
 
   function validateLocal(raw: string) {
     const cleaned = raw.trim().replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, "");
@@ -137,54 +134,80 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 980 }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Factory Builder</h1>
-      <p style={{ opacity: 0.8, marginTop: 0 }}>
-        Prompt je pevný (šablóna). Jediné čo sa mení je zoznam nasadených edícií, aby sa nerobili kópie.
-      </p>
+    <main className="min-h-screen p-6 bg-neutral-950 text-neutral-100">
+      <div className="w-full max-w-3xl mx-auto rounded-2xl bg-neutral-900 p-6 border border-neutral-800 shadow-xl">
+        <h1 className="text-2xl font-semibold mb-2">Factory Builder</h1>
+        <p className="text-neutral-400">
+          Prompt je pevný (šablóna). Jediné čo sa mení je zoznam nasadených edícií, aby sa nerobili kópie.
+        </p>
 
-      <section style={{ marginTop: 18 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 8 }}>1) Prompt pre LLM</h2>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={18}
-          style={{ width: "100%", padding: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
-        />
-        <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={onCopyPrompt}>Copy prompt</button>
-          <button onClick={() => setPrompt(basePrompt)}>Reset prompt</button>
-          <a href="/list">pozrieť edície</a>
-        </div>
-      </section>
+        <section className="mt-6">
+          <h2 className="text-lg font-semibold mb-2">1) Prompt pre LLM</h2>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={18}
+            className="w-full p-3 rounded-xl bg-neutral-950 border border-neutral-800 outline-none focus:border-neutral-600 font-mono text-neutral-100"
+          />
+          <div className="mt-2 flex flex-wrap gap-3">
+            <button
+              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
+              onClick={/* onCopyPrompt */}
+            >
+              Copy prompt
+            </button>
+            <button
+              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
+              onClick={() => setPrompt(basePrompt)}
+            >
+              Reset prompt
+            </button>
+            <a href="/list" className="underline text-neutral-300">pozrieť edície</a>
+          </div>
+        </section>
 
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 8 }}>2) Vlož LLM JSON a postav edíciu</h2>
-        <textarea
-          value={editionJson}
-          onChange={(e) => setEditionJson(e.target.value)}
-          rows={12}
-          placeholder='Sem vlož čistý JSON objekt: { "slug": "...", "title": "...", "content": {...} }'
-          style={{ width: "100%", padding: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
-        />
-        <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            onClick={() => {
-              const v = validateLocal(editionJson);
-              setStatus(v.ok ? { kind: "ok", msg: "JSON vyzerá validne." } : { kind: "err", msg: `Neplatný JSON: ${v.error}` });
-            }}
-          >
-            Validate
-          </button>
-          <button onClick={onDispatch}>Dispatch build</button>
-        </div>
+        <section className="mt-6">
+          <h2 className="text-lg font-semibold mb-2">2) Vlož LLM JSON a postav edíciu</h2>
+          <textarea
+            value={editionJson}
+            onChange={(e) => setEditionJson(e.target.value)}
+            rows={12}
+            placeholder='Sem vlož čistý JSON objekt: { "slug": "...", "title": "...", "content": {...} }'
+            className="w-full p-3 rounded-xl bg-neutral-950 border border-neutral-800 outline-none focus:border-neutral-600 font-mono text-neutral-100"
+          />
+          <div className="mt-2 flex flex-wrap gap-3">
+            <button
+              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
+              onClick={() => {
+                const v = validateLocal(editionJson);
+                setStatus(v.ok ? { kind: "ok", msg: "JSON vyzerá validne." } : { kind: "err", msg: `Neplatný JSON: ${v.error}` });
+              }}
+            >
+              Validate
+            </button>
+            <button
+              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
+              onClick={/* onDispatch */}
+            >
+              Dispatch build
+            </button>
+          </div>
 
-        {status.msg ? (
-          <p style={{ marginTop: 10, padding: 10, border: "1px solid #ccc" }}>
-            <strong>{status.kind === "err" ? "Error" : status.kind === "ok" ? "OK" : "Info"}:</strong> {status.msg}
-          </p>
-        ) : null}
-      </section>
+          {status.msg && (
+            <p
+              className={`mt-3 p-3 rounded-xl border ${
+                status.kind === "err"
+                  ? "border-red-500 text-red-300"
+                  : status.kind === "ok"
+                  ? "border-green-500 text-green-300"
+                  : "border-neutral-700 text-neutral-300"
+              }`}
+            >
+              <strong>{status.kind === "err" ? "Error" : status.kind === "ok" ? "OK" : "Info"}:</strong> {status.msg}
+            </p>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

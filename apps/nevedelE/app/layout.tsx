@@ -1,9 +1,19 @@
-﻿export default function RootLayout({ children }: { children: React.ReactNode }) {
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+
+export const metadata: Metadata = {
+  title: "nevedelE",
+  description: "Modern UI pre coso-system",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial" }}>
-        {children}
-      </body>
+    <html lang="sk" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="font-sans bg-neutral-950 text-neutral-100">{children}</body>
     </html>
   );
 }

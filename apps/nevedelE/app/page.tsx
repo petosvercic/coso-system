@@ -1,16 +1,14 @@
 ﻿export default function Home() {
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 32, marginBottom: 8 }}>nevedelE</h1>
-      <p style={{ opacity: 0.8, marginBottom: 16 }}>
-        Produktova appka (monorepo) - UI skeleton.
-      </p>
-      <div style={{ display: "flex", gap: 12 }}>
-        <a href="/list">Zoznamy</a>
-        <a href="/builder">Builder</a>
+    <main className="min-h-screen p-6 flex items-center justify-center">
+      <div className="w-full max-w-2xl rounded-2xl bg-neutral-900 p-6 border border-neutral-800 shadow-xl">
+        <h1 className="text-2xl font-semibold">nevedelE</h1>
+        <p className="text-neutral-300 mt-2 text-sm">Produktová appka (monorepo) – UI skeleton.</p>
+        <div className="mt-6 flex gap-4">
+          <a href="/list" className="rounded-xl bg-neutral-100 text-neutral-950 px-4 py-2 font-semibold">Zoznamy</a>
+          <a href="/builder" className="rounded-xl bg-neutral-100 text-neutral-950 px-4 py-2 font-semibold">Builder</a>
+        </div>
       </div>
-      <hr style={{ margin: "24px 0" }} />
-      <p style={{ opacity: 0.7 }}>API sanity: /api/compute</p>
     </main>
   );
 }
