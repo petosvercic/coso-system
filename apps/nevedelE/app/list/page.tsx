@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
+export const dynamic = "force-dynamic";
 
 type EditionIndexEntry = {
   slug: string;
   title: string;
   createdAt?: string;
-
-type EditionIndexEntry = { slug: string; title: string; createdAt?: string };
+};
 
 function readJsonNoBom(filePath: string) {
   const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
@@ -16,6 +16,7 @@ function readJsonNoBom(filePath: string) {
 
 export default function ListPage() {
   const idxPath = path.join(process.cwd(), "data", "editions.json");
+
   let editions: EditionIndexEntry[] = [];
   try {
     const idx = readJsonNoBom(idxPath);
@@ -25,30 +26,28 @@ export default function ListPage() {
   }
 
   return (
-    <main className="min-h-screen p-6 bg-neutral-950 text-neutral-100">
-      <div className="w-full max-w-2xl mx-auto rounded-2xl bg-neutral-900 p-6 border border-neutral-800 shadow-xl">
-        <h1 className="text-xl font-semibold mb-3">Edície (nasadené weby)</h1>
-        <p className="text-neutral-500 mb-4">index: {idxPath}</p>
+    <main style={{ padding: 24, fontFamily: "system-ui" }}>
+      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Edície (nasadené weby)</h1>
+      <p style={{ opacity: 0.7, marginTop: 0 }}>index: {idxPath}</p>
 
-        {editions.length === 0 ? (
-          <p className="text-neutral-400">Zatial nič. Keď workflow pridá edíciu, objaví sa tu.</p>
-        ) : (
-          <ul className="space-y-2">
-            {editions.map((e) => (
-              <li key={e.slug}>
-                <a href={`/e/${encodeURIComponent(e.slug)}`} className="text-neutral-100 underline">{e.title}</a>{" "}
-                <small className="text-neutral-500">
-                  ({e.slug}{e.createdAt ? `, ${e.createdAt}` : ""})
-                </small>
-              </li>
-            ))}
-          </ul>
-        )}
+      {editions.length === 0 ? (
+        <p style={{ opacity: 0.75 }}>Zatiaľ nič. Keď Builder pridá edíciu, objaví sa tu.</p>
+      ) : (
+        <ul style={{ lineHeight: 1.8 }}>
+          {editions.map((e) => (
+            <li key={e.slug}>
+              <a href={\/e/\\}>{e.title}</a>{" "}
+              <small style={{ opacity: 0.7 }}>
+                ({e.slug}{e.createdAt ? \, \\ : ""})
+              </small>
+            </li>
+          ))}
+        </ul>
+      )}
 
-        <p className="mt-6">
-          <a href="/" className="underline text-neutral-300">späť</a>
-        </p>
-      </div>
+      <p style={{ marginTop: 16 }}>
+        <a href="/">späť</a>
+      </p>
     </main>
   );
 }

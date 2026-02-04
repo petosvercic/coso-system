@@ -16,13 +16,13 @@ const PREPAY_CATS = 3;
 const PREPAY_ITEMS_WITH_ANSWER = 3;
 
 function makeRid(slug: string) {
-  return `${slug}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return \\-\-\\;
 }
 
 function normalizeBirthDate(s: string) {
   const t = (s || "").trim();
 
-  // input[type=date] dá ISO YYYY-MM-DD
+  // input[type=date] gives ISO YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
 
   // fallback: 08. 02. 1991 / 08.02.1991
@@ -31,7 +31,7 @@ function normalizeBirthDate(s: string) {
     const dd = m[1].padStart(2, "0");
     const mm = m[2].padStart(2, "0");
     const yyyy = m[3];
-    return `${yyyy}-${mm}-${dd}`;
+    return \\-\-\\;
   }
   return null;
 }
@@ -40,10 +40,8 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   const c = edition?.content ?? {};
   const locale = edition?.engine?.locale ?? "sk";
 
-  const ridKey = useMemo(() => `coso:rid:${slug}`, [slug]);
-  const inputKey = useMemo(() => `coso:input:${slug}`, [slug]);          // posledné meno + dátum
-  const resultKey = useMemo(() => `coso:result:${slug}`, [slug]);        // posledný result (teaser/full)
-  const paidKey = useMemo(() => `coso:paid:${slug}`, [slug]);            // cache paid flag (len UX)
+  const storageRidKey = useMemo(() => \coso:rid:\\, [slug]);
+  const storageInputKey = useMemo(() => \coso:input:\\, [slug]);
 
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -53,69 +51,99 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string>("");
 
-  const didAutoCompute = useRef(false);
+  const autoComputeOnce = useRef(false);
 
-  // init: rid + cached inputs + cached result + cached paid
-  useEffect(() => {
-    const existingRid = localStorage.getItem(ridKey);
-    const nextRid = existingRid || makeRid(slug);
-    localStorage.setItem(ridKey, nextRid);
-    setRid(nextRid);
+  function persistInput(n: string, b: string) {
+    try {
+      localStorage.setItem(storageInputKey, JSON.stringify({ name: n ?? "", birthDate: b ?? "" }));
+    } catch {}
+  }
 
-    const cachedInputRaw = localStorage.getItem(inputKey);
-    if (cachedInputRaw) {
-      try {
-        const obj = JSON.parse(cachedInputRaw);
-        if (typeof obj?.name === "string") setName(obj.name);
-        if (typeof obj?.birthDate === "string") setBirthDate(obj.birthDate);
-      } catch {}
+  function loadInput() {
+    try {
+      const raw = localStorage.getItem(storageInputKey);
+      if (!raw) return null;
+      const j = JSON.parse(raw);
+      return { name: String(j?.name ?? ""), birthDate: String(j?.birthDate ?? "") };
+    } catch {
+      return null;
     }
+  }
 
-    const cachedResultRaw = localStorage.getItem(resultKey);
-    if (cachedResultRaw) {
-      try {
-        const obj = JSON.parse(cachedResultRaw);
-        if (obj && typeof obj === "object") setResult(obj);
-      } catch {}
-    }
-
-    const cachedPaid = localStorage.getItem(paidKey);
-    if (cachedPaid === "1") setPaid(true);
-  }, [slug, ridKey, inputKey, resultKey, paidKey]);
-
-  // Refresh fix: vždy si over paid status iba cez rid (KV na serveri)
+  // RID init
   useEffect(() => {
-    const effectiveRid = rid || localStorage.getItem(ridKey) || null;
-    if (!effectiveRid) return;
+    const existing = localStorage.getItem(storageRidKey);
+    const next = existing || makeRid(slug);
+    localStorage.setItem(storageRidKey, next);
+    setRid(next);
+  }, [slug, storageRidKey]);
 
-    fetch(`/api/pay/status?rid=${encodeURIComponent(effectiveRid)}`)
-      .then((r) => r.json())
-      .then((j) => {
-        const isPaid = Boolean(j?.ok && j?.paid);
-        setPaid(isPaid);
-        localStorage.setItem(paidKey, isPaid ? "1" : "0");
-      })
-      .catch(() => {});
-  }, [rid, ridKey, paidKey]);
+  // Load last input (so po refreshi nie je prázdno)
+  useEffect(() => {
+    const inp = loadInput();
+    if (inp) {
+      setName(inp.name);
+      setBirthDate(inp.birthDate);
+    }
+  }, [storageInputKey]);
 
-  // Handle návrat zo Stripe (session_id v URL)
+  async function computeWith(n: string, b: string) {
+    setErr("");
+    const iso = normalizeBirthDate(b);
+    if (!iso) { setErr("Zadaj dátum narodenia."); return; }
+
+    setBusy("Počítam…");
+    try {
+      const res = await fetch("/api/compute", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          editionSlug: slug,
+          name: n.trim() ? n.trim() : undefined,
+          birthDate: iso,
+          locale,
+        }),
+      });
+
+      const j = await res.json().catch(() => null);
+      if (!res.ok || !j?.ok) throw new Error(j?.error ?? "COMPUTE_FAILED");
+      setResult(j.result as EngineResult);
+    } catch (e: any) {
+      setErr(String(e?.message ?? e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onCompute() {
+    persistInput(name, birthDate);
+    await computeWith(name, birthDate);
+  }
+
+  // Stripe return: verify payment, set paid, then auto-compute from stored input
   useEffect(() => {
     const url = new URL(window.location.href);
     const sessionId = url.searchParams.get("session_id");
     const urlRid = url.searchParams.get("rid");
     if (!sessionId) return;
 
-    const effectiveRid = urlRid || rid || localStorage.getItem(ridKey) || null;
+    const effectiveRid = urlRid || rid || localStorage.getItem(storageRidKey) || null;
     if (!effectiveRid) return;
 
     setBusy("Overujem platbu…");
-    fetch(`/api/pay/status?session_id=${encodeURIComponent(sessionId)}&rid=${encodeURIComponent(effectiveRid)}`)
+    fetch(\/api/pay/status?session_id=\&rid=\\)
       .then((r) => r.json())
-      .then((j) => {
-        const isPaid = Boolean(j?.ok && j?.paid);
-        if (isPaid) {
+      .then(async (j) => {
+        if (j?.ok && j?.paid) {
           setPaid(true);
-          localStorage.setItem(paidKey, "1");
+
+          // auto compute using stored input (or current state)
+          const inp = loadInput();
+          const n = inp?.name ?? name;
+          const b = inp?.birthDate ?? birthDate;
+          if (n || b) {
+            await computeWith(n, b);
+          }
         }
       })
       .finally(() => {
@@ -125,66 +153,40 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         url.searchParams.delete("rid");
         window.history.replaceState({}, "", url.toString());
       });
-  }, [rid, ridKey, paidKey]);
+  }, [rid, storageRidKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function onCompute() {
-    setErr("");
-    const iso = normalizeBirthDate(birthDate);
-    if (!iso) {
-      setErr("Zadaj dátum narodenia.");
-      return;
-    }
-
-    setBusy("Počítam…");
-    try {
-      const payload = {
-        editionSlug: slug,
-        name: name.trim() ? name.trim() : undefined,
-        birthDate: iso,
-        locale,
-      };
-
-      const res = await fetch("/api/compute", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const j = await res.json().catch(() => null);
-      if (!res.ok || !j?.ok) throw new Error(j?.error ?? "COMPUTE_FAILED");
-
-      const nextResult = j.result as EngineResult;
-      setResult(nextResult);
-
-      // Cache inputs + result, aby refresh nevyžadoval ďalšie klikanie
-      localStorage.setItem(inputKey, JSON.stringify({ name: name, birthDate: birthDate }));
-      localStorage.setItem(resultKey, JSON.stringify(nextResult));
-    } catch (e: any) {
-      setErr(String(e?.message ?? e));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  // Ak je paid=true a nemáme result (napr. user sa vrátil na čistú stránku), skúsiť auto compute raz
+  // After refresh: if we already have rid, ask server if paid=true (KV) and auto-compute once
   useEffect(() => {
-    if (!paid) return;
-    if (result) return;
-    if (didAutoCompute.current) return;
+    const effectiveRid = rid || localStorage.getItem(storageRidKey) || null;
+    if (!effectiveRid) return;
 
-    const iso = normalizeBirthDate(birthDate);
-    if (!iso) return;
-
-    didAutoCompute.current = true;
-    onCompute();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paid, result, birthDate]);
+    fetch(\/api/pay/status?rid=\\)
+      .then((r) => r.json())
+      .then(async (j) => {
+        if (j?.ok && j?.paid) {
+          setPaid(true);
+          if (!autoComputeOnce.current && !result) {
+            autoComputeOnce.current = true;
+            const inp = loadInput();
+            const n = inp?.name ?? name;
+            const b = inp?.birthDate ?? birthDate;
+            if (n || b) {
+              await computeWith(n, b);
+            }
+          }
+        }
+      })
+      .catch(() => {});
+  }, [rid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onCheckout() {
     setErr("");
-    const effectiveRid = rid || localStorage.getItem(ridKey) || makeRid(slug);
-    localStorage.setItem(ridKey, effectiveRid);
+    const effectiveRid = rid || localStorage.getItem(storageRidKey) || makeRid(slug);
+    localStorage.setItem(storageRidKey, effectiveRid);
     setRid(effectiveRid);
+
+    // store input so we can auto compute after returning from Stripe
+    persistInput(name, birthDate);
 
     document.getElementById("paywall-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
     setBusy("Presmerúvam na platbu…");
@@ -194,7 +196,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           rid: effectiveRid,
-          returnTo: `/e/${slug}`,
+          returnTo: \/e/\\,
         }),
       });
 
@@ -238,12 +240,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
           <label>
             <div style={{ fontSize: 13, opacity: 0.8 }}>{c?.form?.birthDateLabel ?? "Dátum narodenia"}</div>
-            <input
-              type="date"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              style={{ width: "100%", padding: 10 }}
-            />
+            <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} style={{ width: "100%", padding: 10 }} />
           </label>
         </div>
 
@@ -267,15 +264,15 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
                 const items = Array.isArray(cat.items) ? cat.items : [];
                 return (
                   <div key={cat.key ?? ci} style={{ padding: 12, border: "1px solid #eee" }}>
-                    <div style={{ fontSize: 13, opacity: 0.7 }}>{cat.title ?? `Kategória ${ci + 1}`}</div>
+                    <div style={{ fontSize: 13, opacity: 0.7 }}>{cat.title ?? \Kategória \\}</div>
 
                     <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
                       {items.map((it, ti) => {
                         const showAnswer = paid || ti < PREPAY_ITEMS_WITH_ANSWER;
                         return (
-                          <div key={it.id ?? `${ci}-${ti}`} style={{ padding: 10, border: "1px solid #f0f0f0" }}>
+                          <div key={it.id ?? \\-\\} style={{ padding: 10, border: "1px solid #f0f0f0" }}>
                             <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-                              <div style={{ fontWeight: 700 }}>{it.title ?? `Task ${ti + 1}`}</div>
+                              <div style={{ fontWeight: 700 }}>{it.title ?? \Task \\}</div>
                               {typeof it.value === "number" ? (
                                 <div style={{ opacity: 0.7, fontSize: 13 }}>
                                   <strong>Hodnota:</strong> {it.value}
