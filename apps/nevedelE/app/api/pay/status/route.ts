@@ -4,7 +4,11 @@ export const dynamic = "force-dynamic";
 import Stripe from "stripe";
 import { kvGet, kvSet } from "../../../../lib/kv";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  return new Stripe(key);
+}
 
 const TTL = 60 * 60 * 24 * 30; // 30 dní
 const KEY = (rid: string) => `paid:${rid}`;
@@ -30,6 +34,10 @@ export async function GET(req: Request) {
     if (cached?.paid) return Response.json({ ok: true, paid: true, source: "kv" });
 
     // 2) Stripe verify
+    const stripe = getStripe();
+    if (!stripe) {
+      return Response.json({ ok: false, error: "MISSING_STRIPE_KEY" }, { status: 500 });
+    }
     const s = await stripe.checkout.sessions.retrieve(sessionId);
     const paid = s.payment_status === "paid";
 
