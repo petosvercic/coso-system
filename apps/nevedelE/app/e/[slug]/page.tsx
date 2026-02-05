@@ -1,41 +1,24 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-import fs from "node:fs";
-import path from "node:path";
 import { notFound } from "next/navigation";
 import EditionClient from "./ui";
+import path from "node:path";
+import fs from "node:fs";
 
-function readJsonNoBom(filePath: string) {
-  const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
-  return JSON.parse(raw);
+export const dynamic = "force-dynamic";
+
+function loadEdition(slug: string) {
+  const base = process.cwd();
+  const p1 = path.join(base, "apps/nevedelE/editions", `${slug}.json`);
+  const p2 = path.join(base, "editions", `${slug}.json`);
+
+  const file = fs.existsSync(p1) ? p1 : fs.existsSync(p2) ? p2 : null;
+  if (!file) return null;
+
+  return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-function findEditionFile(slug: string): string | null {
-  const cwd = process.cwd();
-  const candidates = [
-    path.join(cwd, "editions", `${slug}.json`),
-    path.join(cwd, "..", "..", "packages", "coso-factory", "editions", `${slug}.json`),
-    path.join(cwd, "..", "..", "editions", `${slug}.json`),
-    path.join(cwd, "..", "..", "..", "packages", "coso-factory", "editions", `${slug}.json`),
-  ];
+export default function Page({ params }: { params: { slug: string } }) {
+  const edition = loadEdition(params.slug);
+  if (!edition) notFound();
 
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p) && fs.statSync(p).isFile()) return p;
-    } catch {}
-  }
-  return null;
-}
-
-export default function EditionPage({ params }: { params: { slug: string } }) {
-  const slug = params?.slug;
-  if (!slug) return notFound();
-
-  const file = findEditionFile(slug);
-  if (!file) return notFound();
-
-  const edition = readJsonNoBom(file);
-
-  return <EditionClient slug={slug} edition={edition} />;
+  return <EditionClient slug={params.slug} edition={edition} />;
 }
