@@ -1,48 +1,62 @@
-import crypto from "node:crypto";
+import { redirect } from "next/navigation";
+import EditionClient from "./ui";
 import fs from "node:fs";
 import path from "node:path";
-import { notFound, redirect } from "next/navigation";
-import EditionClient from "./ui";
 
 export const dynamic = "force-dynamic";
 
-type Edition = any;
+type Edition = {
+  title?: string;
+  engine?: { locale?: string };
+  content?: any;
+};
 
 function readJsonNoBom(filePath: string) {
   const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
   return JSON.parse(raw);
 }
 
-function findEditionPath(slug: string) {
-  const p1 = path.join(process.cwd(), "data", "editions", `${slug}.json`);
-  if (fs.existsSync(p1)) return p1;
-
-  const p2 = path.join(process.cwd(), "apps", "nevedelE", "data", "editions", `${slug}.json`);
-  if (fs.existsSync(p2)) return p2;
-
+function findEditionJson(slug: string) {
+  // try repo root editions first, then app-local editions
+  const candidates = [
+    path.join(process.cwd(), "editions", `${slug}.json`),
+    path.join(process.cwd(), "apps", "nevedelE", "editions", `${slug}.json`),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
   return null;
 }
 
-export default function EditionPage({
+function makeRid(slug: string) {
+  // stable enough; only generated once per "first entry" then persisted in URL
+  const t = Date.now().toString(36);
+  const r = Math.random().toString(36).slice(2, 8);
+  return `${slug}-${t}-${r}`;
+}
+
+export default function Page({
   params,
   searchParams,
 }: {
   params: { slug: string };
-  searchParams?: { rid?: string };
+  searchParams?: { rid?: string; session_id?: string };
 }) {
-  const slug = String(params?.slug ?? "");
-  if (!slug) notFound();
+  const slug = params.slug;
+  const rid = searchParams?.rid;
 
-  const rid = (searchParams?.rid ?? "").trim();
+  // IMPORTANT: ensure rid is always present in URL (survives refresh + stripe return)
   if (!rid) {
-    const newRid = crypto.randomUUID();
-    redirect(`/e/${encodeURIComponent(slug)}?rid=${encodeURIComponent(newRid)}`);
+    const nextRid = makeRid(slug);
+    redirect(`/e/${encodeURIComponent(slug)}?rid=${encodeURIComponent(nextRid)}`);
   }
 
-  const edPath = findEditionPath(slug);
-  if (!edPath) notFound();
+  const editionPath = findEditionJson(slug);
+  if (!editionPath) {
+    redirect("/list");
+  }
 
-  const edition: Edition = readJsonNoBom(edPath);
+  const edition = readJsonNoBom(editionPath) as Edition;
 
   return <EditionClient slug={slug} rid={rid} edition={edition} />;
 }

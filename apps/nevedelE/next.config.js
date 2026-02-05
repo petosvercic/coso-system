@@ -1,5 +1,13 @@
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  
-  transpilePackages: ["coso-engine", "coso-contract"]};
+  async rewrites() {
+    return [
+      {
+        source: "/:slug((?!api|_next|list|builder|factory-login|e).*)",
+        destination: "/e/:slug",
+      },
+    ];
+  },
+};
+
 module.exports = nextConfig;
