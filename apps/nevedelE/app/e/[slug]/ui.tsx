@@ -46,7 +46,7 @@ function normalizeBirthDate(s: string) {
   return `${m[1]}-${m[2]}-${m[3]}`;
 }
 
-export function EditionUI({ slug, edition }: { slug: string; edition: Edition }) {
+export default function EditionUI({ slug, edition }: { slug: string; edition: Edition }) {
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [rid, setRid] = useState<string | null>(null);
