@@ -1,8 +1,18 @@
-import { NextResponse } from "next/server";
-import { getRedis } from "../../../../lib/redis";
+﻿import { NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function getRedis() {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  // build / chýbajúce env → nepadni
+  if (!url || !token) return null;
+
+  return new Redis({ url, token });
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -14,8 +24,6 @@ export async function GET(req: Request) {
   }
 
   const redis = getRedis();
-
-  // počas build-u alebo bez env – NESMIE PADNÚŤ
   if (!redis) {
     return NextResponse.json({ paid: false }, { status: 200 });
   }
