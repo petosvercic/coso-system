@@ -13,6 +13,16 @@ function readJsonNoBom(filePath: string) {
   return JSON.parse(raw);
 }
 
+function findEditionPath(slug: string) {
+  const p1 = path.join(process.cwd(), "data", "editions", `${slug}.json`);
+  if (fs.existsSync(p1)) return p1;
+
+  const p2 = path.join(process.cwd(), "apps", "nevedelE", "data", "editions", `${slug}.json`);
+  if (fs.existsSync(p2)) return p2;
+
+  return null;
+}
+
 export default function EditionPage({
   params,
   searchParams,
@@ -29,8 +39,8 @@ export default function EditionPage({
     redirect(`/e/${encodeURIComponent(slug)}?rid=${encodeURIComponent(newRid)}`);
   }
 
-  const edPath = path.join(process.cwd(), "data", "editions", `${slug}.json`);
-  if (!fs.existsSync(edPath)) notFound();
+  const edPath = findEditionPath(slug);
+  if (!edPath) notFound();
 
   const edition: Edition = readJsonNoBom(edPath);
 
