@@ -36,7 +36,16 @@ function normalizeBirthDate(s: string) {
   return null;
 }
 
-export default function EditionClient({ slug, edition }: { slug: string; edition: Edition }) {
+export default function EditionClient({
+  slug,
+  rid,
+  edition,
+}: {
+  slug: string;
+  rid: string;
+  edition: Edition;
+}) {
+ {
   const c = edition?.content ?? {};
   const locale = edition?.engine?.locale ?? "sk";
 

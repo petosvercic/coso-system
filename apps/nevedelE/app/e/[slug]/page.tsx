@@ -1,27 +1,38 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import EditionClient from "./ui";
+
+export const dynamic = "force-dynamic";
+
+type Edition = any;
 
 function readJsonNoBom(filePath: string) {
   const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
   return JSON.parse(raw);
 }
 
-export const dynamic = "force-dynamic";
-
-export default async function EditionPage({
+export default function EditionPage({
   params,
+  searchParams,
 }: {
-  params: Promise<{ slug: string }> | { slug: string };
+  params: { slug: string };
+  searchParams?: { rid?: string };
 }) {
-  const p: any = await (params as any);
-  const slug = String(p?.slug ?? "");
+  const slug = String(params?.slug ?? "");
+  if (!slug) notFound();
+
+  const rid = (searchParams?.rid ?? "").trim();
+  if (!rid) {
+    const newRid = crypto.randomUUID();
+    redirect(`/e/${encodeURIComponent(slug)}?rid=${encodeURIComponent(newRid)}`);
+  }
 
   const edPath = path.join(process.cwd(), "data", "editions", `${slug}.json`);
-  if (!slug || !fs.existsSync(edPath)) notFound();
+  if (!fs.existsSync(edPath)) notFound();
 
-  const edition = readJsonNoBom(edPath);
+  const edition: Edition = readJsonNoBom(edPath);
 
-  return <EditionClient slug={slug} edition={edition} />;
+  return <EditionClient slug={slug} rid={rid} edition={edition} />;
 }
