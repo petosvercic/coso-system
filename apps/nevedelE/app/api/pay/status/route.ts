@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 
 export const runtime = "nodejs";
@@ -7,29 +7,40 @@ export const dynamic = "force-dynamic";
 function getRedis() {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  // build / chýbajúce env → nepadni
   if (!url || !token) return null;
-
   return new Redis({ url, token });
 }
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const rid = (url.searchParams.get("rid") ?? "").trim();
-  const slug = (url.searchParams.get("slug") ?? "").trim();
-
-  if (!rid) {
-    return NextResponse.json({ paid: false }, { status: 200 });
-  }
+  const u = new URL(req.url);
+  const rid = (u.searchParams.get("rid") ?? "").trim();
+  const slug = (u.searchParams.get("slug") ?? "").trim();
 
   const redis = getRedis();
-  if (!redis) {
-    return NextResponse.json({ paid: false }, { status: 200 });
+  const envOk = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+  if (!rid) {
+    return NextResponse.json({ paid: false, error: "missing rid", envOk }, { status: 200 });
   }
 
-  const key = slug ? `paid:${rid}:${slug}` : `paid:${rid}`;
-  const v = await redis.get<string>(key);
+  if (!redis) {
+    return NextResponse.json({ paid: false, envOk, reason: "redis-not-configured" }, { status: 200 });
+  }
 
-  return NextResponse.json({ paid: v === "1" || v === "true" }, { status: 200 });
+  const key1 = `paid:${rid}:${slug}`;
+  const key2 = `paid:${rid}`;
+
+  const v1 = slug ? await redis.get<string>(key1) : null;
+  const v2 = await redis.get<string>(key2);
+
+  const paid = v1 === "1" || v1 === "true" || v2 === "1" || v2 === "true";
+
+  return NextResponse.json({
+    paid,
+    envOk,
+    rid,
+    slug,
+    keysTried: slug ? [key1, key2] : [key2],
+    values: slug ? { [key1]: v1, [key2]: v2 } : { [key2]: v2 },
+  });
 }
