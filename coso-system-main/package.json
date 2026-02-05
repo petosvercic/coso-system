@@ -1,0 +1,20 @@
+{
+  "name": "coso-system",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "packageManager": "npm@10",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build -w coso-contract && npm run build -w coso-engine && npm run build -w coso-product-template",
+    "dev": "npm run dev -w coso-product-template",
+    "start": "npm run start -w coso-product-template",
+    "fix": "node scripts/doctor.mjs --fix-bom",
+    "verify": "node scripts/doctor.mjs && npm run build && node scripts/doctor.mjs --postbuild",
+    "build:nevedelE": "npm run build -w coso-contract && npm run build -w coso-engine && npm run build -w coso-product-template"
+  }
+}
