@@ -32,7 +32,7 @@ function makeRid(slug: string) {
   // stable enough; only generated once per "first entry" then persisted in URL
   const t = Date.now().toString(36);
   const r = Math.random().toString(36).slice(2, 8);
-  return `${slug}-${t}-${r}`;
+  return `${slug}-${Date.now()}`;
 }
 
 export default function Page({
