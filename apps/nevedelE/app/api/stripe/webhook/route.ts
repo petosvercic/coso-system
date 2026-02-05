@@ -1,36 +1,64 @@
+// /apps/nevedelE/app/api/stripe/webhook/route.ts
+import { NextResponse } from "next/server";
+import Stripe from "stripe";
+import { getRedis } from "../../../../lib/redis";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import Stripe from "stripe";
-import { kvSet } from "../../../../lib/kv";
+function mustEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
-const KEY = (rid: string) => `paid:${rid}`;
-const TTL = 60 * 60 * 24 * 30; // 30 dní
+function stripeClient(): Stripe {
+  // Stripe klient vytvárame až v runtime (v handleri), nie pri importe.
+  const key = mustEnv("STRIPE_SECRET_KEY");
+  return new Stripe(key, { apiVersion: "2026-01-28.clover" as any });
+}
 
 export async function POST(req: Request) {
-  const sig = req.headers.get("stripe-signature");
-  const whsec = process.env.STRIPE_WEBHOOK_SECRET || "";
-
-  if (!sig || !whsec) return new Response("missing signature/secret", { status: 400 });
-
-  const body = await req.text();
-
-  let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, sig, whsec);
-  } catch (err: any) {
-    return new Response("Webhook signature verification failed", { status: 400 });
-  }
+    const stripe = stripeClient();
 
-  // minimal: mark rid as paid
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const rid = (session.metadata?.rid || "").trim();
-    if (rid) {
-      await kvSet(KEY(rid), { paid: true, at: Date.now(), source: "webhook" }, TTL);
+    // Stripe webhook signature
+    const sig = req.headers.get("stripe-signature");
+    if (!sig) return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
+
+    const secret = mustEnv("STRIPE_WEBHOOK_SECRET");
+    const rawBody = await req.text();
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, secret);
+    } catch (err: any) {
+      return NextResponse.json({ error: `Webhook signature verification failed: ${err?.message ?? err}` }, { status: 400 });
     }
-  }
 
-  return new Response("ok", { status: 200 });
+    // OPTIONAL: ak používaš redis na uloženie "paid" statusu
+    // Nech to nepadne pri importe: redis si berieme lazy.
+    const redis = getRedis();
+
+    // Tu si doplň svoje eventy podľa toho čo používaš
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+
+      // typicky: session.client_reference_id alebo metadata.rid/slug
+      const rid = (session.client_reference_id ?? session.metadata?.rid ?? "").toString();
+      const slug = (session.metadata?.slug ?? "").toString();
+
+      if (redis && rid) {
+        // napr: uložiť "paid" na rid (+ slug ak chceš)
+        const key = slug ? `paid:${rid}:${slug}` : `paid:${rid}`;
+        await redis.set(key, "1", { ex: 60 * 60 * 24 * 30 }); // 30 dní
+      }
+    }
+
+    // Vráť 200 vždy, keď to spracuješ (inak Stripe retry spam)
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    // Runtime chyba (env chýba, redis problém atď.)
+    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
+  }
 }
