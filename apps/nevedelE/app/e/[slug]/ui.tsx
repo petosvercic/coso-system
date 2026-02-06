@@ -23,7 +23,6 @@ function normalizeBirthDate(s: string) {
 }
 
 function makeRid(slug: string) {
-  // Stabilné per device + slug
   const key = `coso:device`;
   let dev = "";
   try {
@@ -42,6 +41,7 @@ function makeRid(slug: string) {
 
 export default function EditionClient({ slug, edition }: { slug: string; edition: Edition }) {
   const c = edition?.content ?? {};
+  const locale = edition?.engine?.locale ?? "sk";
 
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -153,17 +153,21 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          slug,
-          name: (name || "").trim() || null,
+          editionSlug: slug,
+          name: (name || "").trim() || "",
           birthDate: bd,
+          locale,
         }),
       });
 
       const json = await r.json();
       if (!r.ok) throw new Error(json?.error || "COMPUTE_FAILED");
 
-      setResult(json);
-      localStorage.setItem(`coso:result:${slug}`, JSON.stringify(json));
+      // API môže vracať { ok, result } alebo rovno result
+      const payload = (json?.result ?? json) as EngineResult;
+
+      setResult(payload);
+      localStorage.setItem(`coso:result:${slug}`, JSON.stringify(payload));
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     }
@@ -229,12 +233,29 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       <div className="grid">
         <div className="card">
           <div className="row">
-            <input className="input" placeholder="Meno (voliteľné)" value={name} onChange={(e) => setName(e.target.value)} />
-            <input className="input" placeholder="YYYY-MM-DD alebo dd.mm.rrrr" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
-            <button className="btn" onClick={onCompute}>Vyhodnotiť</button>
+            <input
+              className="input"
+              placeholder="Meno (voliteľné)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="YYYY-MM-DD alebo dd.mm.rrrr"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+            />
+            <button className="btn" onClick={onCompute}>
+              Vyhodnotiť
+            </button>
             <span className="badge">paid: {String(paid)}</span>
           </div>
-          {err ? <div style={{ marginTop: 10 }} className="err">{err}</div> : null}
+
+          {err ? (
+            <div style={{ marginTop: 10 }} className="err">
+              {err}
+            </div>
+          ) : null}
         </div>
 
         {visible?.categories?.length ? (
@@ -242,7 +263,11 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
             <div className="pay">
               <div>
                 <div className="sectionTitle">Výsledok</div>
-                {!paid ? <div style={{ opacity: 0.75, fontSize: 13 }}>Zobrazený je len teaser. Zvyšok sa sprístupní po platbe.</div> : null}
+                {!paid ? (
+                  <div style={{ opacity: 0.75, fontSize: 13 }}>
+                    Zobrazený je len teaser. Zvyšok sa sprístupní po platbe.
+                  </div>
+                ) : null}
               </div>
 
               {!paid ? (
@@ -266,8 +291,14 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
                       return (
                         <div className={`item ${locked ? "locked" : ""}`} key={it.id ?? idx}>
                           <h3>{it.title ?? `Položka ${idx + 1}`}</h3>
-                          {typeof it.value === "number" ? <div className="meta">Hodnota: {it.value}</div> : null}
-                          {locked ? <div>Skryté. Sprístupní sa po platbe.</div> : <div>{it.text ?? ""}</div>}
+                          {typeof it.value === "number" ? (
+                            <div className="meta">Hodnota: {it.value}</div>
+                          ) : null}
+                          {locked ? (
+                            <div>Skryté. Sprístupní sa po platbe.</div>
+                          ) : (
+                            <div>{it.text ?? ""}</div>
+                          )}
                         </div>
                       );
                     })}
