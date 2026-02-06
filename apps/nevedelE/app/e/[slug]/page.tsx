@@ -13,23 +13,32 @@ type Edition = {
 };
 
 function loadEdition(slug: string): Edition | null {
-  const base = process.cwd();
+  // Vercel/Next runtime: cwd býva root appky (apps/nevedelE)
+  const cwd = process.cwd();
 
-  // správne miesto (tvoje reálne dáta)
-  const pData1 = path.join(base, "apps", "nevedelE", "data", "editions", `${slug}.json`);
-  const pData2 = path.join(base, "data", "editions", `${slug}.json`);
+  // Ak chceš natvrdo nastaviť root pre editions, dá sa envkou
+  const editionsRootEnv = (process.env.EDITIONS_ROOT || "").trim();
 
-  // legacy fallback (ak by si to niekde ešte mal)
-  const pLegacy1 = path.join(base, "apps", "nevedelE", "editions", `${slug}.json`);
-  const pLegacy2 = path.join(base, "editions", `${slug}.json`);
+  const roots = [
+    // 1) explicitné env nastavenie (ak použiješ)
+    ...(editionsRootEnv ? [editionsRootEnv] : []),
 
-  const file =
-    (fs.existsSync(pData1) && pData1) ||
-    (fs.existsSync(pData2) && pData2) ||
-    (fs.existsSync(pLegacy1) && pLegacy1) ||
-    (fs.existsSync(pLegacy2) && pLegacy2) ||
-    null;
+    // 2) bežný case: app workspace root
+    cwd,
 
+    // 3) fallback: ak by cwd bolo repo root alebo niečo iné
+    path.resolve(cwd, ".."),
+    path.resolve(cwd, "..", ".."),
+  ];
+
+  const candidates: string[] = [];
+  for (const r of roots) {
+    candidates.push(path.join(r, "data", "editions", `${slug}.json`));
+    candidates.push(path.join(r, "apps", "nevedelE", "data", "editions", `${slug}.json`)); // legacy fallback
+    candidates.push(path.join(r, "editions", `${slug}.json`)); // legacy fallback
+  }
+
+  const file = candidates.find((p) => fs.existsSync(p)) ?? null;
   if (!file) return null;
 
   try {
@@ -39,6 +48,7 @@ function loadEdition(slug: string): Edition | null {
     return null;
   }
 }
+
 
 export default function Page({ params }: { params: { slug: string } }) {
   const slug = params?.slug || "";
