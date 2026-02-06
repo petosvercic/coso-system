@@ -1,0 +1,126 @@
+﻿diff --git a/apps/nevedelE/app/builder/ui.tsx b/apps/nevedelE/app/builder/ui.tsx
+index 66eb29f..6b10851 100644
+--- a/apps/nevedelE/app/builder/ui.tsx
++++ b/apps/nevedelE/app/builder/ui.tsx
+@@ -152,7 +152,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
+           <div className="mt-2 flex flex-wrap gap-3">
+             <button
+               className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
+-              onClick={() => {}}
++              onClick={onCopyPrompt}
+             >
+               Copy prompt
+             </button>
+@@ -187,7 +187,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
+             </button>
+             <button
+               className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
+-              onClick={() => {}}
++              onClick={onDispatch}
+             >
+               Dispatch build
+             </button>
+diff --git a/apps/nevedelE/app/e/[slug]/page.tsx b/apps/nevedelE/app/e/[slug]/page.tsx
+index 52e77c1..026fc15 100644
+--- a/apps/nevedelE/app/e/[slug]/page.tsx
++++ b/apps/nevedelE/app/e/[slug]/page.tsx
+@@ -50,8 +50,8 @@ function loadEdition(slug: string): Edition | null {
+ }
+ 
+ 
+-export default function Page({ params }: { params: { slug: string } }) {
+-  const slug = params?.slug || "";
++export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
++  const { slug = "" } = await params;
+   const edition = loadEdition(slug);
+ 
+   if (!edition) {
+diff --git a/apps/nevedelE/app/layout.tsx b/apps/nevedelE/app/layout.tsx
+index c6041b2..ad30430 100644
+--- a/apps/nevedelE/app/layout.tsx
++++ b/apps/nevedelE/app/layout.tsx
+@@ -1,10 +1,6 @@
+ import type { Metadata } from "next";
+-import { Geist, Geist_Mono } from "next/font/google";
+ import "./globals.css";
+ 
+-const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
+-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+-
+ export const metadata: Metadata = {
+   title: "nevedelE",
+   description: "Modern UI pre coso-system",
+@@ -12,7 +8,7 @@ export const metadata: Metadata = {
+ 
+ export default function RootLayout({ children }: { children: React.ReactNode }) {
+   return (
+-    <html lang="sk" className={`${geistSans.variable} ${geistMono.variable}`}>
++    <html lang="sk">
+       <body className="font-sans bg-neutral-950 text-neutral-100">{children}</body>
+     </html>
+   );
+diff --git a/apps/nevedelE/app/list/page.tsx b/apps/nevedelE/app/list/page.tsx
+index 3a6eb68..dd10a6f 100644
+--- a/apps/nevedelE/app/list/page.tsx
++++ b/apps/nevedelE/app/list/page.tsx
+@@ -1,19 +1,36 @@
+ // /apps/nevedelE/app/list/page.tsx
++import fs from "node:fs";
++import path from "node:path";
+ import Link from "next/link";
+ 
+ export const dynamic = "force-dynamic";
+ 
+-const EDITIONS = [
+-  { slug: "demo-odomykanie", title: "Demo odomykanie 5×25" },
+-];
++type EditionIndexEntry = { slug: string; title: string; createdAt?: string };
++
++function loadEditions(): EditionIndexEntry[] {
++  const idxPath = path.join(process.cwd(), "data", "editions.json");
++
++  try {
++    const raw = fs.readFileSync(idxPath, "utf8");
++    const parsed = JSON.parse(raw);
++
++    if (!Array.isArray(parsed?.editions)) return [];
++
++    return parsed.editions.filter((e: any) => typeof e?.slug === "string" && typeof e?.title === "string");
++  } catch {
++    return [];
++  }
++}
+ 
+ export default function ListPage() {
++  const editions = loadEditions();
++
+   return (
+     <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 18px", fontFamily: "system-ui" }}>
+       <h1 style={{ fontSize: 28, marginBottom: 16 }}>Zoznam edícií</h1>
+ 
+       <div style={{ display: "grid", gap: 10 }}>
+-        {EDITIONS.map((e) => (
++        {editions.map((e) => (
+           <Link
+             key={e.slug}
+             href={`/e/${e.slug}`}
+diff --git a/apps/nevedelE/next.config.js b/apps/nevedelE/next.config.js
+index f714911..0f50ddb 100644
+--- a/apps/nevedelE/next.config.js
++++ b/apps/nevedelE/next.config.js
+@@ -9,12 +9,10 @@ const nextConfig = {
+     ];
+   },
+ 
+-  experimental: {
+-    // Donútime Next/Vercel pribaliť editions JSONy do serverless bundlov
+-    outputFileTracingIncludes: {
+-      "/*": ["./data/editions/**", "./data/editions.json"],
+-      "/api/*": ["./data/editions/**", "./data/editions.json"],
+-    },
++  // Donútime Next/Vercel pribaliť editions JSONy do serverless bundlov
++  outputFileTracingIncludes: {
++    "/*": ["./data/editions/**", "./data/editions.json"],
++    "/api/*": ["./data/editions/**", "./data/editions.json"],
+   },
+ };
