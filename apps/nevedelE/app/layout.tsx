@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
   title: "nevedelE",
@@ -12,8 +8,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="sk" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="font-sans bg-neutral-950 text-neutral-100">{children}</body>
+    <html lang="sk">
+      <body className="bg-neutral-950 text-neutral-100" style={{ fontFamily: "Inter, system-ui, Arial, sans-serif" }}>
+        {children}
+      </body>
     </html>
   );
 }

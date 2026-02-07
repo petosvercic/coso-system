@@ -3,18 +3,19 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: "/:slug((?!api|_next|list|builder|factory-login|e).*)",
+        source: "/:slug((?!api|_next|list|builder|factory-login|e|soc-stat).*)",
         destination: "/e/:slug",
       },
     ];
   },
 
-  experimental: {
-    // Donútime Next/Vercel pribaliť editions JSONy do serverless bundlov
-    outputFileTracingIncludes: {
-      "/*": ["./data/editions/**", "./data/editions.json"],
-      "/api/*": ["./data/editions/**", "./data/editions.json"],
-    },
+  // Monorepo workspace packages used by this app
+  transpilePackages: ["coso-engine", "coso-contract"],
+
+  // Next 16: this key is top-level (not experimental)
+  outputFileTracingIncludes: {
+    "/*": ["./data/editions/**", "./data/editions.json"],
+    "/api/*": ["./data/editions/**", "./data/editions.json"],
   },
 };
 
