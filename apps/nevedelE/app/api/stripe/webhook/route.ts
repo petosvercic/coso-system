@@ -15,7 +15,7 @@ function mustEnv(name: string): string {
 function stripeClient(): Stripe {
   // Stripe klient vytvárame až v runtime (v handleri), nie pri importe.
   const key = mustEnv("STRIPE_SECRET_KEY");
-  return new Stripe(key, { apiVersion: "2026-01-28.clover" as any });
+  return new Stripe(key);
 }
 
 export async function POST(req: Request) {
