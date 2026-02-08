@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { normalizeEditionJsonRaw, validateEditionJson } from "../../lib/edition-json";
 
 type EditionIndexEntry = { slug: string; title: string; createdAt?: string };
 
@@ -14,6 +15,9 @@ function buildPrompt(editions: EditionIndexEntry[]) {
     "CIEĽ:",
     "- Vygeneruj NOVÚ edíciu pre rovnakú web-app šablónu.",
     "- Musí to byť unikátna edícia (žiadne kópie).",
+    "",
+    "DOMÉNA (doplnenie):",
+    "- Pri taskoch konzistentne pokry aj spánok/regeneráciu: šlofík, power nap, NSDR, meditácia, ticho, oči zatvorené, mikropauzy.",
     "",
     "VÝSTUP:",
     "Vráť presne 1 JSON objekt (bez markdown).",
@@ -32,35 +36,16 @@ function buildPrompt(editions: EditionIndexEntry[]) {
     "  },",
     '  \"tasks\": {',
     '    \"pickPerCategory\": 25,',
-    '    \"categories\": [',
-    '      {',
-    '        \"key\": \"cat-1\",',
-    '        \"title\": \"Názov kategórie\",',
-    '        \"pool\": [',
-    '          {',
-    '            \"id\": \"cat1_t01\",',
-    '            \"title\": \"Názov tasku\",',
-    '            \"metricKey\": \"short_metric_key\",',
-    '            \"variants\": [',
-    '              { \"when\": { \"lte\": 33 }, \"text\": \"…\" },',
-    '              { \"when\": { \"between\": [34, 66] }, \"text\": \"…\" },',
-    '              { \"when\": { \"gte\": 67 }, \"text\": \"…\" }',
-    '            ]',
-    '          }',
-    '        ]',
-    '      }',
-    '    ]',
-    '  }',
+    '    \"categories\": [ ... 5 kategórií, každá presne 50 taskov ... ]',
+    "  }",
     "}",
     "",
     "PRAVIDLÁ:",
     "- slug musí byť unikátny (pozri zoznam nasadených edícií nižšie).",
-    "- nepoužívaj vulgárnosti ani hate.",
     "- content píš po slovensky.",
     "- MUSÍŠ vytvoriť presne 5 kategórií.",
     "- Každá kategória MUSÍ mať pool presne 50 taskov.",
-    "- Každý task MUSÍ mať 3 varianty (lte/between/gte) a musia dávať zmysel pre daný task.",
-    "- ids musia byť unikátne v rámci edície.",
+    "- Každý task MUSÍ mať 3 varianty (lte/between/gte).",
     "",
     "NASADENÉ EDÍCIE (nesmieš zopakovať slug ani tému 1:1):",
     deployed || "- (zatiaľ nič)",
@@ -75,40 +60,17 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
   const [editionJson, setEditionJson] = useState("");
   const [status, setStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" });
 
-
-  function validateLocal(raw: string) {
-    const cleaned = raw.trim().replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, "");
-    let obj: any;
-    try {
-      obj = JSON.parse(cleaned);
-    } catch (e: any) {
-      return { ok: false, error: "INVALID_JSON", details: String(e?.message ?? e) };
-    }
-
-    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { ok: false, error: "NOT_OBJECT" };
-    if (typeof obj.slug !== "string" || !obj.slug.trim()) return { ok: false, error: "MISSING_SLUG" };
-    if (typeof obj.title !== "string" || !obj.title.trim()) return { ok: false, error: "MISSING_TITLE" };
-    if (!obj.content || typeof obj.content !== "object" || Array.isArray(obj.content))
-      return { ok: false, error: "MISSING_CONTENT_OBJECT" };
-
-    const slug = obj.slug.trim();
-    if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(slug)) return { ok: false, error: "BAD_SLUG", details: slug };
-    if (editions.some((e) => e.slug === slug)) return { ok: false, error: "DUPLICATE_SLUG", details: slug };
-
-    return { ok: true, obj: { ...obj, slug, title: obj.title.trim() } };
-  }
-
   async function onCopyPrompt() {
     try {
       await navigator.clipboard.writeText(prompt);
       setStatus({ kind: "ok", msg: "Prompt skopírovaný." });
     } catch {
-      setStatus({ kind: "err", msg: "Kopírovanie zlyhalo. Skús Ctrl+C ako človek z roku 2007." });
+      setStatus({ kind: "err", msg: "Kopírovanie zlyhalo." });
     }
   }
 
   async function onDispatch() {
-    const v = validateLocal(editionJson);
+    const v = validateEditionJson(editionJson, editions.map((e) => e.slug));
     if (!v.ok) {
       setStatus({ kind: "err", msg: `Neplatný JSON: ${v.error}${v.details ? ` (${v.details})` : ""}` });
       return;
@@ -119,11 +81,10 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
     const res = await fetch("/api/factory/dispatch", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ edition: v.obj }),
+      body: JSON.stringify({ edition: v.obj, rawEditionJson: editionJson }),
     });
 
     const data = await res.json().catch(() => null);
-
     if (!res.ok || !data?.ok) {
       setStatus({ kind: "err", msg: `Dispatch zlyhal: ${data?.error ?? res.status} ${data?.message ?? ""}`.trim() });
       return;
@@ -134,75 +95,56 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
   }
 
   return (
-    <main className="min-h-screen p-6 bg-neutral-950 text-neutral-100">
-      <div className="w-full max-w-3xl mx-auto rounded-2xl bg-neutral-900 p-6 border border-neutral-800 shadow-xl">
-        <h1 className="text-2xl font-semibold mb-2">Factory Builder</h1>
-        <p className="text-neutral-400">
-          Prompt je pevný (šablóna). Jediné čo sa mení je zoznam nasadených edícií, aby sa nerobili kópie.
-        </p>
+    <main className="min-h-screen bg-neutral-950 px-4 py-8 text-neutral-100">
+      <div className="mx-auto w-full max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-xl">
+        <h1 className="text-3xl font-semibold tracking-tight">Factory Builder</h1>
+        <p className="mt-2 text-sm leading-6 text-neutral-400">Prompt a zoznam edícií používajú rovnaký zdroj dát.</p>
 
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold mb-2">1) Prompt pre LLM</h2>
+        <section className="mt-8 space-y-2">
+          <h2 className="text-xl font-semibold">1) Prompt pre LLM</h2>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={18}
-            className="w-full p-3 rounded-xl bg-neutral-950 border border-neutral-800 outline-none focus:border-neutral-600 font-mono text-neutral-100"
+            className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-sm leading-6 outline-none focus:border-neutral-500"
           />
           <div className="mt-2 flex flex-wrap gap-3">
-            <button
-              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
-              onClick={() => {}}
-            >
-              Copy prompt
-            </button>
-            <button
-              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
-              onClick={() => setPrompt(basePrompt)}
-            >
-              Reset prompt
-            </button>
-            <a href="/list" className="underline text-neutral-300">pozrieť edície</a>
+            <button className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-950" onClick={onCopyPrompt}>Copy prompt</button>
+            <button className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-950" onClick={() => setPrompt(basePrompt)}>Reset prompt</button>
+            <a href="/list" className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-200">Pozrieť edície</a>
           </div>
         </section>
 
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold mb-2">2) Vlož LLM JSON a postav edíciu</h2>
+        <section className="mt-8 space-y-2">
+          <h2 className="text-xl font-semibold">2) Vlož LLM JSON a postav edíciu</h2>
           <textarea
             value={editionJson}
             onChange={(e) => setEditionJson(e.target.value)}
             rows={12}
-            placeholder='Sem vlož čistý JSON objekt: { "slug": "...", "title": "...", "content": {...} }'
-            className="w-full p-3 rounded-xl bg-neutral-950 border border-neutral-800 outline-none focus:border-neutral-600 font-mono text-neutral-100"
+            placeholder='Povolené sú aj ```json ... ``` bloky alebo text okolo JSON.'
+            className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-sm leading-6 outline-none focus:border-neutral-500"
           />
           <div className="mt-2 flex flex-wrap gap-3">
             <button
-              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
+              className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-950"
               onClick={() => {
-                const v = validateLocal(editionJson);
+                const v = validateEditionJson(editionJson, editions.map((e) => e.slug));
                 setStatus(v.ok ? { kind: "ok", msg: "JSON vyzerá validne." } : { kind: "err", msg: `Neplatný JSON: ${v.error}` });
               }}
             >
               Validate
             </button>
+            <button className="rounded-lg bg-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-950" onClick={onDispatch}>Dispatch build</button>
             <button
-              className="rounded-xl bg-neutral-100 text-neutral-950 px-3 py-2 font-semibold"
-              onClick={() => {}}
+              className="rounded-lg border border-neutral-700 px-3 py-2 text-sm"
+              onClick={() => setEditionJson(normalizeEditionJsonRaw(editionJson))}
             >
-              Dispatch build
+              Normalize JSON
             </button>
           </div>
 
           {status.msg && (
-            <p
-              className={`mt-3 p-3 rounded-xl border ${
-                status.kind === "err"
-                  ? "border-red-500 text-red-300"
-                  : status.kind === "ok"
-                  ? "border-green-500 text-green-300"
-                  : "border-neutral-700 text-neutral-300"
-              }`}
-            >
+            <p className={`mt-3 rounded-xl border p-3 text-sm ${status.kind === "err" ? "border-red-500 text-red-300" : status.kind === "ok" ? "border-green-500 text-green-300" : "border-neutral-700 text-neutral-300"}`}>
               <strong>{status.kind === "err" ? "Error" : status.kind === "ok" ? "OK" : "Info"}:</strong> {status.msg}
             </p>
           )}

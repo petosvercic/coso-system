@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 
+import fs from "node:fs";
+import path from "node:path";
 import { NextResponse } from "next/server";
-
-type Edition = { slug: string; title: string; content: Record<string, any> };
+import { validateEditionJson } from "../../../../lib/edition-json";
+import { getDataPaths, listEditions } from "../../../../lib/editions-store";
 
 function env(name: string) {
   const v = process.env[name];
@@ -10,25 +12,55 @@ function env(name: string) {
   return v;
 }
 
+function persistEditionLocally(edition: any) {
+  const { indexPath, editionsDir } = getDataPaths();
+  fs.mkdirSync(editionsDir, { recursive: true });
+
+  const now = new Date().toISOString();
+  const normalizedEdition = { ...edition, createdAt: edition.createdAt || now };
+  const edPath = path.join(editionsDir, `${edition.slug}.json`);
+  fs.writeFileSync(edPath, JSON.stringify(normalizedEdition, null, 2) + "\n", "utf8");
+
+  let idx: any = { editions: [] };
+  if (fs.existsSync(indexPath)) {
+    idx = JSON.parse(fs.readFileSync(indexPath, "utf8").replace(/^\uFEFF/, ""));
+  }
+  if (!Array.isArray(idx.editions)) idx.editions = [];
+
+  if (!idx.editions.some((e: any) => e?.slug === edition.slug)) {
+    idx.editions.unshift({ slug: edition.slug, title: edition.title, createdAt: normalizedEdition.createdAt });
+  }
+
+  fs.writeFileSync(indexPath, JSON.stringify(idx, null, 2) + "\n", "utf8");
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
+    const rawEditionJson = String((body as any)?.rawEditionJson ?? "");
+    const editionInBody = (body as any)?.edition;
 
-    const edition: Edition | null =
-      body && typeof body === "object" && body !== null && "edition" in (body as any)
-        ? (body as any).edition
-        : null;
+    const validated = validateEditionJson(
+      rawEditionJson || JSON.stringify(editionInBody ?? {}),
+      listEditions().map((e) => e.slug)
+    );
 
-    if (!edition || typeof edition !== "object") {
-      return NextResponse.json({ ok: false, error: "MISSING_EDITION" }, { status: 400 });
+    if (!validated.ok) {
+      console.error("dispatch validation failed", {
+        error: validated.error,
+        details: (validated as any).details,
+        debug: (validated as any).debug,
+      });
+      return NextResponse.json({ ok: false, error: validated.error, details: (validated as any).details }, { status: 400 });
     }
 
-    if (typeof edition.slug !== "string" || !edition.slug.trim())
-      return NextResponse.json({ ok: false, error: "MISSING_SLUG" }, { status: 400 });
-    if (typeof edition.title !== "string" || !edition.title.trim())
-      return NextResponse.json({ ok: false, error: "MISSING_TITLE" }, { status: 400 });
-    if (!edition.content || typeof edition.content !== "object" || Array.isArray(edition.content))
-      return NextResponse.json({ ok: false, error: "MISSING_CONTENT_OBJECT" }, { status: 400 });
+    const edition = validated.obj;
+
+    try {
+      persistEditionLocally(edition);
+    } catch (e: any) {
+      console.warn("local persist skipped", String(e?.message ?? e));
+    }
 
     const owner = env("GITHUB_OWNER");
     const repo = env("GITHUB_REPO");
@@ -47,10 +79,7 @@ export async function POST(req: Request) {
         "x-github-api-version": "2022-11-28",
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        ref,
-        inputs: { edition_json: JSON.stringify(edition) },
-      }),
+      body: JSON.stringify({ ref, inputs: { edition_json: JSON.stringify(edition) } }),
     });
 
     if (!res.ok) {
@@ -62,7 +91,7 @@ export async function POST(req: Request) {
     }
 
     const runUrl = `https://github.com/${owner}/${repo}/actions/workflows/${workflow}`;
-    return NextResponse.json({ ok: true, runUrl }, { status: 200 });
+    return NextResponse.json({ ok: true, runUrl, slug: edition.slug }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", message: String(e?.message ?? e) }, { status: 500 });
   }
