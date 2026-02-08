@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
 import { getDataPaths, listEditions } from "../../../../lib/editions-store";
@@ -114,6 +115,28 @@ async function persistEditionInGithub(args: { owner: string; repo: string; token
   });
 }
 
+
+async function dispatchWorkflow(args: {
+  owner: string;
+  repo: string;
+  token: string;
+  workflow: string;
+  ref: string;
+  inputs: Record<string, string>;
+}) {
+  const url = `https://api.github.com/repos/${args.owner}/${args.repo}/actions/workflows/${args.workflow}/dispatches`;
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${args.token}`,
+      "x-github-api-version": "2022-11-28",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ ref: args.ref, inputs: args.inputs }),
+  });
+}
+
 function persistEditionLocally(edition: any) {
   const { indexPath, editionsDir } = getDataPaths();
   fs.mkdirSync(editionsDir, { recursive: true });
@@ -172,17 +195,14 @@ export async function POST(req: Request) {
     const workflow = process.env.GITHUB_WORKFLOW ?? "factory.yml";
     const ref = process.env.GITHUB_REF ?? "main";
 
-    const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`;
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "x-github-api-version": "2022-11-28",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ ref, inputs: { edition_json: JSON.stringify(edition) } }),
+    const plainPayload = JSON.stringify(edition);
+    let res = await dispatchWorkflow({
+      owner,
+      repo,
+      token,
+      workflow,
+      ref,
+      inputs: { edition_json: plainPayload },
     });
 
     if (!res.ok) {
@@ -190,6 +210,22 @@ export async function POST(req: Request) {
       const isTooLarge = res.status === 422 && /inputs are too large/i.test(text);
 
       if (isTooLarge) {
+        const gz = zlib.gzipSync(Buffer.from(plainPayload, "utf8")).toString("base64");
+        res = await dispatchWorkflow({
+          owner,
+          repo,
+          token,
+          workflow,
+          ref,
+          inputs: { edition_json_gzip_b64: gz },
+        });
+
+        if (res.ok) {
+          const runUrl = `https://github.com/${owner}/${repo}/actions/workflows/${workflow}`;
+          return NextResponse.json({ ok: true, runUrl, slug: edition.slug, mode: "workflow-dispatch-gzip" }, { status: 200 });
+        }
+
+        const text2 = await res.text().catch(() => "");
         try {
           await persistEditionInGithub({ owner, repo, token, ref, edition });
           return NextResponse.json(
@@ -202,12 +238,17 @@ export async function POST(req: Request) {
             { status: 200 }
           );
         } catch (e: any) {
+          const fallbackErr = String(e?.message ?? e);
+          const isTokenPerm = /GITHUB_CONTENT_PUT_FAILED:403/.test(fallbackErr);
           return NextResponse.json(
             {
               ok: false,
-              error: "GITHUB_FALLBACK_PERSIST_FAILED",
+              error: isTokenPerm ? "GITHUB_TOKEN_CONTENTS_PERMISSION_REQUIRED" : "GITHUB_FALLBACK_PERSIST_FAILED",
               status: res.status,
-              message: `${text.slice(0, 300)} | fallback: ${String(e?.message ?? e)}`,
+              message: `${text.slice(0, 200)} | gzip: ${text2.slice(0, 200)} | fallback: ${fallbackErr}`,
+              hint: isTokenPerm
+                ? "PAT must include repository Contents write access (or use a token with repo:contents write)."
+                : undefined,
             },
             { status: 500 }
           );
