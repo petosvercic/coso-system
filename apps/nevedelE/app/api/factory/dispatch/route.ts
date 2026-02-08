@@ -12,6 +12,99 @@ function env(name: string) {
   return v;
 }
 
+
+
+function ghHeaders(token: string) {
+  return {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "x-github-api-version": "2022-11-28",
+    "content-type": "application/json",
+  };
+}
+
+async function ghGetContent(args: { owner: string; repo: string; token: string; path: string; ref: string }) {
+  const u = `https://api.github.com/repos/${args.owner}/${args.repo}/contents/${args.path}?ref=${encodeURIComponent(args.ref)}`;
+  const res = await fetch(u, { headers: ghHeaders(args.token) });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GITHUB_CONTENT_GET_FAILED:${res.status}`);
+  const json: any = await res.json();
+  const content = typeof json?.content === "string" ? Buffer.from(json.content.replace(/\n/g, ""), "base64").toString("utf8") : "";
+  return { sha: String(json?.sha || ""), content };
+}
+
+async function ghPutContent(args: {
+  owner: string;
+  repo: string;
+  token: string;
+  path: string;
+  ref: string;
+  message: string;
+  content: string;
+  sha?: string;
+}) {
+  const u = `https://api.github.com/repos/${args.owner}/${args.repo}/contents/${args.path}`;
+  const body: any = {
+    message: args.message,
+    branch: args.ref,
+    content: Buffer.from(args.content, "utf8").toString("base64"),
+  };
+  if (args.sha) body.sha = args.sha;
+
+  const res = await fetch(u, {
+    method: "PUT",
+    headers: ghHeaders(args.token),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`GITHUB_CONTENT_PUT_FAILED:${res.status}:${text.slice(0, 200)}`);
+  }
+}
+
+async function persistEditionInGithub(args: { owner: string; repo: string; token: string; ref: string; edition: any }) {
+  const now = new Date().toISOString();
+  const edition = { ...args.edition, createdAt: args.edition.createdAt || now };
+  const slug = String(edition.slug);
+
+  const idxPath = "apps/nevedelE/data/editions.json";
+  const edPath = `apps/nevedelE/data/editions/${slug}.json`;
+
+  const idxCurrent = await ghGetContent({ ...args, path: idxPath });
+  const idxSha = idxCurrent?.sha;
+  let idx: any = { editions: [] };
+
+  if (idxCurrent?.content) {
+    try {
+      idx = JSON.parse(idxCurrent.content.replace(/^﻿/, ""));
+    } catch {
+      idx = { editions: [] };
+    }
+  }
+  if (!Array.isArray(idx.editions)) idx.editions = [];
+  if (!idx.editions.some((e: any) => e?.slug === slug)) {
+    idx.editions.unshift({ slug, title: String(edition.title || slug), createdAt: edition.createdAt });
+  }
+
+  await ghPutContent({
+    ...args,
+    path: idxPath,
+    sha: idxSha,
+    message: `chore(factory): update index for ${slug}`,
+    content: JSON.stringify(idx, null, 2) + "\n",
+  });
+
+  const existingEdition = await ghGetContent({ ...args, path: edPath });
+  await ghPutContent({
+    ...args,
+    path: edPath,
+    sha: existingEdition?.sha,
+    message: `chore(factory): add edition ${slug}`,
+    content: JSON.stringify(edition, null, 2) + "\n",
+  });
+}
+
 function persistEditionLocally(edition: any) {
   const { indexPath, editionsDir } = getDataPaths();
   fs.mkdirSync(editionsDir, { recursive: true });
@@ -85,6 +178,33 @@ export async function POST(req: Request) {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      const isTooLarge = res.status === 422 && /inputs are too large/i.test(text);
+
+      if (isTooLarge) {
+        try {
+          await persistEditionInGithub({ owner, repo, token, ref, edition });
+          return NextResponse.json(
+            {
+              ok: true,
+              slug: edition.slug,
+              mode: "github-contents-fallback",
+              message: "Workflow inputs too large; persisted directly via GitHub Contents API.",
+            },
+            { status: 200 }
+          );
+        } catch (e: any) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: "GITHUB_FALLBACK_PERSIST_FAILED",
+              status: res.status,
+              message: `${text.slice(0, 300)} | fallback: ${String(e?.message ?? e)}`,
+            },
+            { status: 500 }
+          );
+        }
+      }
+
       return NextResponse.json(
         { ok: false, error: "GITHUB_DISPATCH_FAILED", status: res.status, message: text.slice(0, 500) },
         { status: 500 }
@@ -92,7 +212,7 @@ export async function POST(req: Request) {
     }
 
     const runUrl = `https://github.com/${owner}/${repo}/actions/workflows/${workflow}`;
-    return NextResponse.json({ ok: true, runUrl, slug: edition.slug }, { status: 200 });
+    return NextResponse.json({ ok: true, runUrl, slug: edition.slug, mode: "workflow-dispatch" }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", message: String(e?.message ?? e) }, { status: 500 });
   }
