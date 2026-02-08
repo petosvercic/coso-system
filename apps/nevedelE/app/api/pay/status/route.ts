@@ -1,16 +1,9 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { Redis } from "@upstash/redis";
+import { getRedis } from "../../../../lib/redis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function getRedis() {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  return new Redis({ url, token });
-}
 
 export async function GET(req: Request) {
   const u = new URL(req.url);
@@ -19,7 +12,7 @@ export async function GET(req: Request) {
   const sessionId = (u.searchParams.get("session_id") ?? "").trim();
 
   const redis = getRedis();
-  const envOk = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  const envOk = Boolean(getRedis());
 
   if (sessionId && process.env.STRIPE_SECRET_KEY) {
     try {

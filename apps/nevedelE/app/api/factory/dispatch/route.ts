@@ -6,10 +6,19 @@ import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
 import { getDataPaths, listEditions } from "../../../../lib/editions-store";
 
-function env(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+
+function resolveRepoParts() {
+  const repoRaw = (process.env.GITHUB_REPO || "").trim();
+  const ownerRaw = (process.env.GITHUB_OWNER || "").trim();
+
+  if (repoRaw.includes("/")) {
+    const [owner, repo] = repoRaw.split("/").map((x) => x.trim()).filter(Boolean);
+    if (owner && repo) return { owner, repo };
+  }
+
+  if (ownerRaw && repoRaw) return { owner: ownerRaw, repo: repoRaw };
+
+  throw new Error("Missing env: GITHUB_REPO (use <owner>/<repo> or set GITHUB_OWNER + GITHUB_REPO)");
 }
 
 
@@ -156,9 +165,9 @@ export async function POST(req: Request) {
       console.warn("local persist skipped", String(e?.message ?? e));
     }
 
-    const owner = env("GITHUB_OWNER");
-    const repo = env("GITHUB_REPO");
-    const token = env("GITHUB_TOKEN");
+    const { owner, repo } = resolveRepoParts();
+    const token = (process.env.GITHUB_TOKEN || "").trim();
+    if (!token) throw new Error("Missing env: GITHUB_TOKEN");
 
     const workflow = process.env.GITHUB_WORKFLOW ?? "factory.yml";
     const ref = process.env.GITHUB_REF ?? "main";
