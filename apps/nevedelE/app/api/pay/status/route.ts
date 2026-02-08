@@ -1,3 +1,4 @@
+import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 
@@ -15,9 +16,22 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const rid = (u.searchParams.get("rid") ?? "").trim();
   const slug = (u.searchParams.get("slug") ?? "").trim();
+  const sessionId = (u.searchParams.get("session_id") ?? "").trim();
 
   const redis = getRedis();
   const envOk = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+  if (sessionId && process.env.STRIPE_SECRET_KEY) {
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session?.payment_status === "paid") {
+        return NextResponse.json({ paid: true, envOk, rid, slug, via: "stripe-session" }, { status: 200 });
+      }
+    } catch {
+      // continue with redis fallback
+    }
+  }
 
   if (!rid) {
     return NextResponse.json({ paid: false, error: "missing rid", envOk }, { status: 200 });

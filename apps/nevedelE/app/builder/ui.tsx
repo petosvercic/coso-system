@@ -137,7 +137,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
             <button className="rounded-lg bg-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-950" onClick={onDispatch}>Dispatch build</button>
             <button
               className="rounded-lg border border-neutral-700 px-3 py-2 text-sm"
-              onClick={() => setEditionJson(normalizeEditionJsonRaw(editionJson))}
+              onClick={() => { const n = normalizeEditionJsonRaw(editionJson); setEditionJson(n); setStatus({ kind: "ok", msg: `JSON normalizovaný (${n.length} chars).` }); }}
             >
               Normalize JSON
             </button>

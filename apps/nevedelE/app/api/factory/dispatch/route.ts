@@ -37,7 +37,8 @@ function persistEditionLocally(edition: any) {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
-    const rawEditionJson = String((body as any)?.rawEditionJson ?? "");
+    const rawEditionJsonInput = (body as any)?.rawEditionJson;
+    const rawEditionJson = typeof rawEditionJsonInput === "string" ? rawEditionJsonInput : rawEditionJsonInput ? JSON.stringify(rawEditionJsonInput) : "";
     const editionInBody = (body as any)?.edition;
 
     const validated = validateEditionJson(
