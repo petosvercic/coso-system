@@ -24,6 +24,34 @@ function extractJSONObject(input: string) {
   return input.slice(start, end + 1);
 }
 
+
+function slugify(input: string) {
+  const base = String(input || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const clipped = base.slice(0, 64);
+  if (/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(clipped)) return clipped;
+  return "generated-edition";
+}
+
+function normalizeGroupsFixture(out: any) {
+  if (!Array.isArray(out?.groups) || out?.tasks) return out;
+
+  const groups = out.groups.filter((g: any) => typeof g === "string" && g.trim());
+  const baseTasks = Array.isArray(out?.tasks) ? out.tasks : [];
+
+  out.categories = groups.map((g: string, idx: number) => ({
+    id: `cat-${idx + 1}`,
+    title: g,
+    tasks: baseTasks,
+  }));
+
+  return out;
+}
+
 function fallbackContent(title: string) {
   return {
     heroTitle: title,
@@ -40,7 +68,7 @@ function fallbackContent(title: string) {
 }
 
 function normalizeFixture(obj: any) {
-  const out = { ...obj };
+  const out = normalizeGroupsFixture({ ...obj });
 
   if (!out.tasks && Array.isArray(out.categories)) {
     out.tasks = {
@@ -68,6 +96,20 @@ function normalizeFixture(obj: any) {
     };
   }
 
+  if (!out.title || typeof out.title !== "string" || !out.title.trim()) {
+    if (Array.isArray(out.groups) && out.groups.length > 0) {
+      out.title = String(out.groups[0] || "").trim() || "Generovaná edícia";
+    } else if (Array.isArray(out.categories) && out.categories.length > 0) {
+      out.title = String(out.categories[0]?.title || "").trim() || "Generovaná edícia";
+    } else {
+      out.title = "Generovaná edícia";
+    }
+  }
+
+  if (!out.slug || typeof out.slug !== "string" || !out.slug.trim()) {
+    out.slug = slugify(out.title || "generated-edition");
+  }
+
   if (!out.content || typeof out.content !== "object" || Array.isArray(out.content)) {
     out.content = fallbackContent(String(out.title || out.slug || "Edícia"));
   }
@@ -83,6 +125,17 @@ export function normalizeEditionJsonRaw(raw: string) {
   const base = sanitizeRaw(raw);
   const noFence = unwrapCodeFence(base);
   return extractJSONObject(noFence).trim();
+}
+
+export function normalizeEditionJsonForBuilder(raw: string) {
+  const normalized = normalizeEditionJsonRaw(raw);
+  try {
+    const parsed = JSON.parse(normalized);
+    const shaped = normalizeFixture(parsed);
+    return JSON.stringify(shaped, null, 2);
+  } catch {
+    return normalized;
+  }
 }
 
 export function validateEditionJson(raw: string, existingSlugs: string[] = []) {
