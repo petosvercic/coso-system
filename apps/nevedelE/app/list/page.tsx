@@ -1,36 +1,30 @@
-// /apps/nevedelE/app/list/page.tsx
 import Link from "next/link";
+import { listEditions } from "../../lib/editions-store";
 
 export const dynamic = "force-dynamic";
 
-const EDITIONS = [
-  { slug: "demo-odomykanie", title: "Demo odomykanie 5×25" },
-];
-
 export default function ListPage() {
-  return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 18px", fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 16 }}>Zoznam edícií</h1>
+  const editions = listEditions();
 
-      <div style={{ display: "grid", gap: 10 }}>
-        {EDITIONS.map((e) => (
-          <Link
-            key={e.slug}
-            href={`/e/${e.slug}`}
-            style={{
-              display: "block",
-              padding: 16,
-              border: "1px solid #e7e7e7",
-              borderRadius: 14,
-              textDecoration: "none",
-              color: "#111",
-              background: "#fff",
-            }}
-          >
-            <div style={{ fontWeight: 700 }}>{e.title}</div>
-            <div style={{ opacity: 0.65, fontSize: 13 }}>/e/{e.slug}</div>
-          </Link>
-        ))}
+  return (
+    <main className="min-h-screen bg-neutral-950 text-neutral-100 px-4 py-10">
+      <div className="mx-auto w-full max-w-3xl">
+        <h1 className="text-3xl font-semibold tracking-tight">Zoznam edícií</h1>
+        <p className="mt-2 text-sm text-neutral-400">Zdroj: data/editions.json + data/editions/*.json</p>
+
+        <div className="mt-6 grid gap-3">
+          {editions.map((e) => (
+            <Link
+              key={e.slug}
+              href={`/e/${e.slug}`}
+              className="block rounded-xl border border-neutral-800 bg-neutral-900 p-4 hover:border-neutral-600"
+            >
+              <div className="font-semibold">{e.title}</div>
+              <div className="mt-1 text-sm text-neutral-400">/e/{e.slug}</div>
+            </Link>
+          ))}
+          {editions.length === 0 && <p className="text-neutral-400">Žiadne edície zatiaľ neexistujú.</p>}
+        </div>
       </div>
     </main>
   );

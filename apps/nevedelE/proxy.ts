@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_PREFIXES = [
-  
-  "/api/factory/login","/e/",
+  "/",
+  "/list",
+  "/soc-stat",
+  "/factory-login",
+  "/api/factory/login",
+  "/e/",
   "/api/compute",
   "/api/stripe/",
   "/api/pay/",
@@ -13,7 +17,6 @@ const PUBLIC_PREFIXES = [
 
 const PROTECTED_PREFIXES = [
   "/builder",
-  "/list",
   "/editions",
   "/api/build",
   "/api/builder",
@@ -29,25 +32,19 @@ function isProtected(pathname: string) {
   return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
-// ✅ Next.js Turbopack proxy entrypoint (replaces middleware)
 export default function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
-// ALLOW_FACTORY_LOGIN: login endpoint musí byť verejný, inak sa nikdy nevytvorí cookie
-if (pathname === "/api/factory/login") {
-  return NextResponse.next();
-}
-// ALLOW_FACTORY_LOGIN
+  if (pathname === "/api/factory/login") return NextResponse.next();
 
-  // public product pages
-  if (isPublic(pathname) || !isProtected(pathname)) {
-    return NextResponse.next();
-  }
+  if (isPublic(pathname) || !isProtected(pathname)) return NextResponse.next();
 
   const token = (process.env.FACTORY_TOKEN || "").trim();
   if (!token) {
-    // fail closed: if token not configured, don't expose factory
-    return new NextResponse("FACTORY_TOKEN_MISSING", { status: 401 });
+    if (process.env.VERCEL === "1") {
+      return new NextResponse("FACTORY_TOKEN_MISSING", { status: 401 });
+    }
+    return NextResponse.next();
   }
 
   const cookieOk = req.cookies.get("factory")?.value === "1";
