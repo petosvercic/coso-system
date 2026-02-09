@@ -12,6 +12,13 @@ type Edition = {
   content?: any;
 };
 
+function formatBirthDateInput(s: string) {
+  const d = s.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 4)}.${d.slice(4)}`;
+}
+
 function normalizeBirthDate(s: string) {
   const t = (s || "").trim();
   if (!t) return "";
@@ -202,15 +209,15 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   return (
     <div className="wrap">
       <style>{`
-        .wrap { max-width: 980px; margin: 0 auto; padding: 56px 18px 120px; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #111; }
+        .wrap { max-width: 980px; margin: 0 auto; padding: 56px 18px 120px; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #1a1a1a; }
         .hero { margin-bottom: 28px; }
-        .title { font-size: 44px; letter-spacing: -0.03em; margin: 0 0 10px; }
+        .title { font-size: 42px; letter-spacing: -0.02em; margin: 0 0 10px; }
         .sub { margin: 0; opacity: .72; max-width: 720px; font-size: 16px; line-height: 1.6; }
-        .card { border: 1px solid #e7e7e7; border-radius: 16px; padding: 18px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+        .card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px; background: #fff; box-shadow: 0 8px 20px rgba(15,23,42,.05); }
         .grid { display: grid; gap: 14px; }
         .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         .input { padding: 10px 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; }
-        .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid #111; background: #111; color: white; cursor: pointer; }
+        .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid #2563eb; background: #2563eb; color: white; cursor: pointer; }
         .btn.secondary { background: white; color: #111; border-color: #ddd; }
         .btn:disabled { opacity: .6; cursor: not-allowed; }
         .err { color: #b00020; font-weight: 600; }
@@ -231,7 +238,15 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       </div>
 
       <div className="grid">
-        <div className="card">
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div className="row">
+            <a className="btn secondary" href="/">Domov</a>
+            <a className="btn secondary" href="/list">Späť na zoznam</a>
+          </div>
+          <span className="badge">paid: {String(paid)}</span>
+        </div>
+
+        {!result && (<div className="card">
           <div className="row">
             <input
               className="input"
@@ -243,20 +258,19 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
               className="input"
               placeholder="YYYY-MM-DD alebo dd.mm.rrrr"
               value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
+              onChange={(e) => setBirthDate(formatBirthDateInput(e.target.value))}
             />
             <button className="btn" onClick={onCompute}>
               Vyhodnotiť
             </button>
-            <span className="badge">paid: {String(paid)}</span>
-          </div>
+                      </div>
 
           {err ? (
             <div style={{ marginTop: 10 }} className="err">
               {err}
             </div>
           ) : null}
-        </div>
+        </div>)}
 
         {visible?.categories?.length ? (
           <div className="card">

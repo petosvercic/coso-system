@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 
 function fail(msg) {
   console.error("FACTORY-APPEND ERROR:", msg);
@@ -23,8 +24,23 @@ function normalizeJsonLike(input) {
   return noFence;
 }
 
-const raw0 = process.env.EDITION_JSON;
-if (!raw0) fail("Missing EDITION_JSON env var");
+function resolveRawInput() {
+  const gz = String(process.env.EDITION_JSON_GZIP_B64 || "").trim();
+  if (gz) {
+    try {
+      const buf = Buffer.from(gz, "base64");
+      return zlib.gunzipSync(buf).toString("utf8");
+    } catch (e) {
+      fail(`Failed to decode EDITION_JSON_GZIP_B64: ${String(e?.message || e)}`);
+    }
+  }
+
+  const raw = process.env.EDITION_JSON;
+  if (!raw) fail("Missing EDITION_JSON/EDITION_JSON_GZIP_B64 env var");
+  return raw;
+}
+
+const raw0 = resolveRawInput();
 
 const raw = normalizeJsonLike(raw0);
 

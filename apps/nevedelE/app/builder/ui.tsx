@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
-import { normalizeEditionJsonRaw, validateEditionJson } from "../../lib/edition-json";
-
+import { normalizeEditionJsonForBuilder, normalizeEditionJsonRaw, validateEditionJson } from "../../lib/edition-json";
+        
 type EditionIndexEntry = { slug: string; title: string; createdAt?: string };
 
 function buildPrompt(editions: EditionIndexEntry[]) {
@@ -72,7 +72,7 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
   async function onDispatch() {
     const v = validateEditionJson(editionJson, editions.map((e) => e.slug));
     if (!v.ok) {
-      setStatus({ kind: "err", msg: `Neplatný JSON: ${v.error}${v.details ? ` (${v.details})` : ""}` });
+      setStatus({ kind: "err", msg: `Neplatný JSON: ${v.error}${v.details ? ` (${v.details})` : ""}; found root keys: ${((v as any)?.debug?.foundRootKeys ?? []).join(", ") || "(none)"}; first 120 chars of normalized input: ${((v as any)?.debug?.normalizedStart ?? "").replace(/\s+/g, " ")}` });
       return;
     }
 
@@ -129,7 +129,9 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
               className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-950"
               onClick={() => {
                 const v = validateEditionJson(editionJson, editions.map((e) => e.slug));
-                setStatus(v.ok ? { kind: "ok", msg: "JSON vyzerá validne." } : { kind: "err", msg: `Neplatný JSON: ${v.error}` });
+
+                setStatus(v.ok ? { kind: "ok", msg: "JSON vyzerá validne." } : { kind: "err", msg: `Neplatný JSON: ${v.error}; found root keys: ${((v as any)?.debug?.foundRootKeys ?? []).join(", ") || "(none)"}; first 120 chars of normalized input: ${((v as any)?.debug?.normalizedStart ?? "").replace(/\s+/g, " ")}` });
+
               }}
             >
               Validate
@@ -137,7 +139,9 @@ export default function BuilderClient({ editions }: { editions: EditionIndexEntr
             <button className="rounded-lg bg-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-950" onClick={onDispatch}>Dispatch build</button>
             <button
               className="rounded-lg border border-neutral-700 px-3 py-2 text-sm"
-              onClick={() => setEditionJson(normalizeEditionJsonRaw(editionJson))}
+
+              onClick={() => { const n = normalizeEditionJsonForBuilder(editionJson); setEditionJson(n); setStatus({ kind: "ok", msg: `JSON normalizovaný (${n.length} chars). Doplnené chýbajúce title/slug/content podľa šablóny.` }); }}
+
             >
               Normalize JSON
             </button>
