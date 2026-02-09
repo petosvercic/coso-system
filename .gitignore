@@ -1,4 +1,4 @@
-﻿# deps / builds
+# deps / builds
 node_modules/
 dist/
 dist-test/
@@ -10,6 +10,8 @@ dist-test/
 .env.local
 .env.*.local
 .env.*
+.env*.local
+!.env.example
 
 # misc
 npm-debug.log*
@@ -22,11 +24,3 @@ _quarantine/
 packages/template-root/
 
 *.broken.*.bak
-
-.vercel
-.env*.local
-
-.vercel
-.env*.local
-
-!.env.example
