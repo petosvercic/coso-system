@@ -19,6 +19,7 @@ function mapValueToZone(value: number): MeaningZone {
 export default function OneDayPage() {
   const [status, setStatus] = useState<FlowState>("IMPULSE");
   const [zone, setZone] = useState<MeaningZone | null>(null);
+  const [hasGold, setHasGold] = useState(false);
   const language = useMemo(() => detectLanguage(), []);
   const t = useMemo(() => createTranslator(language), [language]);
   const contentPack = useMemo(() => getValidatedContentPack(language, t), [language, t]);
@@ -43,13 +44,24 @@ export default function OneDayPage() {
     if (!paymentsEnabled) return;
     const response = await fetch("/api/checkout/gold", { method: "POST" });
     if (!response.ok) return;
-    const data = (await response.json()) as { sessionUrl?: string };
-    if (data.sessionUrl) window.location.href = data.sessionUrl;
+    const data = (await response.json()) as { url?: string };
+    if (data.url) window.location.href = data.url;
   };
 
   useEffect(() => {
     telemetry.emit("session_started");
   }, [telemetry]);
+
+  useEffect(() => {
+    const loadGold = async () => {
+      const response = await fetch("/api/gold/status", { method: "GET" });
+      if (!response.ok) return;
+      const data = (await response.json()) as { hasGold?: boolean };
+      setHasGold(Boolean(data.hasGold));
+    };
+
+    loadGold();
+  }, []);
 
   useEffect(() => {
     if (status === "IMPULSE") telemetry.emit("impulse_shown");
@@ -156,6 +168,11 @@ export default function OneDayPage() {
             <div className="mt-5">
               <SentenceBlock>{result.body}</SentenceBlock>
             </div>
+            {status === "RESULT" && hasGold ? (
+              <div className="mt-3">
+                <SentenceBlock>{t("gold.result.extra")}</SentenceBlock>
+              </div>
+            ) : null}
             {status === "RESULT" && paymentsEnabled ? (
               <button type="button" onClick={startGoldCheckout} className="mx-auto mt-6 text-sm text-neutral-500 underline">
                 {t("gold.deepLink")}

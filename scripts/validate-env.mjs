@@ -5,7 +5,15 @@ if (!enabled) {
   process.exit(0);
 }
 
-const required = ['STRIPE_SECRET_KEY', 'STRIPE_GOLD_PRICE_ID', 'NEXT_PUBLIC_BASE_URL', 'GOLD_TOKEN_SECRET'];
+const required = [
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'STRIPE_PRICE_ID',
+  'NEXT_PUBLIC_APP_URL',
+  'STRIPE_PUBLISHABLE_KEY',
+  'GOLD_TOKEN_SECRET',
+];
+
 const missing = required.filter((key) => !process.env[key]);
 
 if (missing.length) {
