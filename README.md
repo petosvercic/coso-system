@@ -28,7 +28,10 @@ Monorepo:
 - Meaning states rotate deterministically; content is swappable.
 - Content packs are JSON-based in `apps/nevedelE/app/one-day/content/packs/`.
 - Build-time selection: `NEXT_PUBLIC_CONTENT_PACK=pack-a|pack-b` (default `pack-a`).
-- Validate a pack offline: `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-a.json`.
+- Validate a pack offline: `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-a.sk.json`.
+- Language selection: browser/platform locale (`sk`, `en`), fallback to `sk`.
+- Locale chrome files: `apps/nevedelE/app/one-day/locales/sk.json`, `apps/nevedelE/app/one-day/locales/en.json`.
+- Language packs: `pack-a.sk.json`, `pack-a.en.json`, `pack-b.sk.json`, `pack-b.en.json`.
 
 ## Edície (source of truth)
 
@@ -51,8 +54,10 @@ Príklad edície:
 ## Release checklist
 
 - `npm run release:check`
-- `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-a.json`
-- `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-b.json`
+- `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-a.sk.json`
+- `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-a.en.json`
+- `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-b.sk.json`
+- `npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-b.en.json`
 
 ## Telemetry privacy
 
@@ -61,3 +66,13 @@ Príklad edície:
 - Enable server logging endpoint: `TELEMETRY_ENABLED=true`.
 - Allowed payload fields only: `name`, `ts`, `session_id`, optional `build_version`, optional `platform`.
 - No user ids, no slider values, no content text, no profiling fields.
+
+
+## Payments skeleton (Gold)
+
+- Feature flag: `PAYMENTS_ENABLED=false` (default).
+- Client visibility flag: `NEXT_PUBLIC_PAYMENTS_ENABLED=false` (default).
+- Checkout endpoint: `POST /api/checkout/gold` (Stripe Checkout, one-time payment).
+- Quiet pages: `/gold/success`, `/gold/cancel`.
+- Validate env: `npm run validate:env`.
+- Required vars when payments enabled: `STRIPE_SECRET_KEY`, `STRIPE_GOLD_PRICE_ID`, `NEXT_PUBLIC_BASE_URL`, `GOLD_TOKEN_SECRET`.

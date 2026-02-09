@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getImpulseCopy, getValidatedContentPack } from "./copy.sk";
 import { assertSilenceInvariants, hasInteractiveAffordances, transition, type FlowState } from "./flow.contract";
+import { detectLanguage, createTranslator } from "./localization";
 import { type MeaningZone, selectMeaningState, validateMeaningPool } from "./meaning-states";
 import skin from "./skin.module.css";
 import { getSessionConfig } from "./session";
-import { ScreenShell, SentenceBlock, SpectrumSlider, TitleBlock } from "./ui";
 import { createTelemetrySession } from "./telemetry";
+import { ScreenShell, SentenceBlock, SpectrumSlider, TitleBlock } from "./ui";
 
 function mapValueToZone(value: number): MeaningZone {
   if (value < 34) return "LOW";
@@ -15,14 +16,16 @@ function mapValueToZone(value: number): MeaningZone {
   return "HIGH";
 }
 
-
 export default function OneDayPage() {
   const [status, setStatus] = useState<FlowState>("IMPULSE");
   const [zone, setZone] = useState<MeaningZone | null>(null);
-  const contentPack = useMemo(() => getValidatedContentPack(), []);
+  const language = useMemo(() => detectLanguage(), []);
+  const t = useMemo(() => createTranslator(language), [language]);
+  const contentPack = useMemo(() => getValidatedContentPack(language, t), [language, t]);
   const session = useMemo(() => getSessionConfig(), []);
-  const spectrumLockedRef = useRef(false);
   const telemetry = useMemo(() => createTelemetrySession(), []);
+  const spectrumLockedRef = useRef(false);
+  const paymentsEnabled = (process.env.NEXT_PUBLIC_PAYMENTS_ENABLED ?? "false").toLowerCase() === "true";
 
   const meaningValidation = useMemo(() => validateMeaningPool(contentPack.meaningStates), [contentPack.meaningStates]);
   if (!meaningValidation.ok && process.env.NODE_ENV !== "production") {
@@ -34,6 +37,14 @@ export default function OneDayPage() {
 
   const transitionTo = (to: FlowState) => {
     setStatus((from) => transition(from, to));
+  };
+
+  const startGoldCheckout = async () => {
+    if (!paymentsEnabled) return;
+    const response = await fetch("/api/checkout/gold", { method: "POST" });
+    if (!response.ok) return;
+    const data = (await response.json()) as { sessionUrl?: string };
+    if (data.sessionUrl) window.location.href = data.sessionUrl;
   };
 
   useEffect(() => {
@@ -52,7 +63,7 @@ export default function OneDayPage() {
 
   useEffect(() => {
     if (status !== "RESULT") return;
-    const timer = window.setTimeout(() => transitionTo("SILENCE"), 0);
+    const timer = window.setTimeout(() => transitionTo("SILENCE"), 1200);
     return () => window.clearTimeout(timer);
   }, [status]);
 
@@ -83,8 +94,7 @@ export default function OneDayPage() {
 
   if (status === "CLOSED") return null;
 
-  const result =
-    zone !== null ? selectMeaningState(new Date(), session.spectrumType, zone, session.dayType, contentPack.meaningStates) : null;
+  const result = zone !== null ? selectMeaningState(new Date(), session.spectrumType, zone, session.dayType, contentPack.meaningStates) : null;
 
   if (status === "IMPULSE") {
     return (
@@ -118,16 +128,16 @@ export default function OneDayPage() {
         bodySlot={
           <div className={skin.shellBody}>
             <SpectrumSlider
-            leftLabel={activeSpectrum.leftLabel}
-            rightLabel={activeSpectrum.rightLabel}
-            ariaLabel={activeSpectrum.ariaLabel}
-            onCommit={(value) => {
-              if (status !== "SPECTRUM" || spectrumLockedRef.current) return;
-              spectrumLockedRef.current = true;
-              setZone(mapValueToZone(value));
-              telemetry.emit("spectrum_committed");
-              transitionTo("RESULT");
-            }}
+              leftLabel={activeSpectrum.leftLabel}
+              rightLabel={activeSpectrum.rightLabel}
+              ariaLabel={activeSpectrum.ariaLabel}
+              onCommit={(value) => {
+                if (status !== "SPECTRUM" || spectrumLockedRef.current) return;
+                spectrumLockedRef.current = true;
+                setZone(mapValueToZone(value));
+                telemetry.emit("spectrum_committed");
+                transitionTo("RESULT");
+              }}
             />
           </div>
         }
@@ -139,17 +149,18 @@ export default function OneDayPage() {
     <ScreenShell
       tone="neutral"
       isSilence={status === "SILENCE"}
-      headerSlot={null}
-      footerSlot={undefined}
       bodySlot={
         result ? (
-          // PROTECTED SILENCE STATE: do not add CTA, links, prompts, suggestions, or auto-navigation here.
-          // Results are strictly today-scoped and must never imply continuity or improvement across days.
           <section className={`flex w-full flex-col text-center ${skin.resultBlock}`} aria-live="polite">
             <TitleBlock>{result.title}</TitleBlock>
             <div className="mt-5">
               <SentenceBlock>{result.body}</SentenceBlock>
             </div>
+            {status === "RESULT" && paymentsEnabled ? (
+              <button type="button" onClick={startGoldCheckout} className="mx-auto mt-6 text-sm text-neutral-500 underline">
+                {t("gold.deepLink")}
+              </button>
+            ) : null}
             <div className="mx-auto mt-12 h-px w-24 bg-neutral-300" aria-hidden="true" />
             <div className="h-28" aria-hidden="true" />
           </section>
