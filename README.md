@@ -33,9 +33,9 @@ Monorepo:
 
 ## Release checklist
 
+- `npm run validate:env`
 - `npm run release:check`
 - `npm run validate:content:all`
-- `npm run validate:env`
 
 ## Telemetry privacy
 
@@ -45,45 +45,44 @@ Monorepo:
 - Allowed payload fields only: `name`, `ts`, `session_id`, optional `build_version`, optional `platform`.
 - No user ids, no slider values, no content text, no profiling fields.
 
-## Env setup (local/preview/prod)
+## Env setup
 
-`.env.local` is ignored by git. Use `.env.example` as the key list template.
+> Never commit secrets. Commit only variable names in `.env.example`.
 
-### Server-only vars
-- `PAYMENTS_ENABLED`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_ID`
-- `GOLD_TOKEN_SECRET`
-- `TELEMETRY_ENABLED`
+### Local setup
+1. Copy `.env.example` to `.env.local`.
+2. Fill real values only in `.env.local`.
+3. Run `npm run validate:env`.
+4. Start app: `npm run dev`.
 
-### Client-exposed vars
-- `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_PAYMENTS_ENABLED`
-- `NEXT_PUBLIC_CONTENT_PACK`
-- `NEXT_PUBLIC_TELEMETRY_ENABLED`
-- `NEXT_PUBLIC_BUILD_VERSION`
-- `STRIPE_PUBLISHABLE_KEY`
+`.env.local` is git-ignored and must stay local.
+
+### Required validation rules
+- Always required: `NEXT_PUBLIC_APP_URL`
+- If `PAYMENTS_ENABLED=true`, all of these are required:
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+  - `STRIPE_PRICE_ID`
+  - `STRIPE_PUBLISHABLE_KEY`
+- If `TELEMETRY_ENABLED=true`, validation allows no-op (no extra required endpoint env).
+
+### Vercel setup
+
+#### Preview environment
+- Add non-production values in **Project Settings → Environment Variables → Preview**.
+- Recommended: keep `PAYMENTS_ENABLED=false` unless preview Stripe/webhook is fully configured.
+- Run `npm run validate:env` in CI for preview branches.
+
+#### Production environment
+- Add production values in **Project Settings → Environment Variables → Production**.
+- If `PAYMENTS_ENABLED=true`, Stripe keys and `NEXT_PUBLIC_APP_URL` must be set or startup fails.
+- Configure Stripe webhook target: `https://<prod-domain>/api/webhooks/stripe`.
 
 ### Payments / Stripe
 - Checkout endpoint: `POST /api/checkout/gold`
 - Quiet pages: `/gold/success`, `/gold/cancel`
 - Webhook endpoint: `POST /api/webhooks/stripe`
-
-For `PAYMENTS_ENABLED=true`, required envs are validated by `npm run validate:env`:
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_ID`
-- `NEXT_PUBLIC_APP_URL`
-- `STRIPE_PUBLISHABLE_KEY`
-- `GOLD_TOKEN_SECRET`
-
-### Webhook testing (local)
-- `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
-
-### Webhook deployment notes
-- Production: set webhook endpoint to `https://<prod-domain>/api/webhooks/stripe`
-- Preview: either configure a preview endpoint per environment or keep webhooks disabled in preview.
+- Local webhook forwarding: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
 
 ## Edície (source of truth)
 
