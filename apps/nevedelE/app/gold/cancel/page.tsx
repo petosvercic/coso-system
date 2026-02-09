@@ -6,8 +6,7 @@ export default function GoldCancelPage() {
   return (
     <main className="min-h-screen px-6 py-12">
       <div className="mx-auto max-w-xl text-center text-neutral-800">
-        <h1 className="text-2xl font-semibold lowercase">{t("gold.cancel.title")}</h1>
-        <p className="mt-4 text-base">{t("gold.cancel.text")}</p>
+        <p className="text-base">{t("gold.cancel.text")}</p>
       </div>
     </main>
   );

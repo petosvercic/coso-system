@@ -9,5 +9,6 @@
   "gold.success.title": "quiet confirmation",
   "gold.success.text": "Payment completed. A deeper view is available for this session.",
   "gold.cancel.title": "no change",
-  "gold.cancel.text": "Payment was not completed. The flow stays unchanged."
+  "gold.cancel.text": "Payment was not completed. The flow stays unchanged.",
+  "gold.result.extra": "A deeper view is open for this session."
 }

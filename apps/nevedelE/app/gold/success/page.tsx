@@ -1,38 +1,43 @@
-import crypto from "node:crypto";
 import Stripe from "stripe";
+import { cookies } from "next/headers";
 import { createTranslator, detectLanguage } from "../../one-day/localization";
+import { signGoldCookie } from "../../../lib/gold-token";
+import { assertPaymentsEnv, paymentsEnabled } from "../../../lib/env";
 
 type Props = {
   searchParams: Promise<{ session_id?: string }>;
 };
 
-function signToken(sessionId: string): string {
-  const secret = process.env.GOLD_TOKEN_SECRET ?? "local-gold-token-secret";
-  return crypto.createHmac("sha256", secret).update(sessionId).digest("hex").slice(0, 24);
-}
-
 export default async function GoldSuccessPage({ searchParams }: Props) {
   const t = createTranslator(detectLanguage());
   const { session_id: sessionId } = await searchParams;
 
-  let token: string | null = null;
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const enabled = paymentsEnabled();
+  const env = assertPaymentsEnv();
 
-  if (sessionId && stripeKey && (process.env.PAYMENTS_ENABLED ?? "false").toLowerCase() === "true") {
-    const stripe = new Stripe(stripeKey);
+  if (enabled && env.ok && sessionId) {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
     const session = await stripe.checkout.sessions.retrieve(sessionId);
+
     if (session.payment_status === "paid") {
-      // Foundation rule: token grants optional depth only; it never changes result truth.
-      token = signToken(sessionId);
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+      const signed = signGoldCookie(sessionId, expiresAt);
+      const store = await cookies();
+      store.set("GOLD", signed, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        expires: new Date(expiresAt),
+        path: "/",
+      });
+      // Foundation rule: Gold entitlement adds optional depth only, never changes core result truth.
     }
   }
 
   return (
     <main className="min-h-screen px-6 py-12">
       <div className="mx-auto max-w-xl text-center text-neutral-800">
-        <h1 className="text-2xl font-semibold lowercase">{t("gold.success.title")}</h1>
-        <p className="mt-4 text-base">{t("gold.success.text")}</p>
-        {token ? <p className="mt-3 text-xs text-neutral-500">token: {token}</p> : null}
+        <p className="text-base">{t("gold.success.text")}</p>
       </div>
     </main>
   );
