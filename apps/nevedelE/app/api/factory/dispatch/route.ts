@@ -7,7 +7,6 @@ import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
 import { getDataPaths, listEditions } from "../../../../lib/editions-store";
 
-
 function resolveRepoParts() {
   const repoRaw = (process.env.GITHUB_REPO || "").trim();
   const ownerRaw = (process.env.GITHUB_OWNER || "").trim();
@@ -159,11 +158,34 @@ function persistEditionLocally(edition: any) {
   fs.writeFileSync(indexPath, JSON.stringify(idx, null, 2) + "\n", "utf8");
 }
 
+function persistEditionLocally(edition: any) {
+  const { indexPath, editionsDir } = getDataPaths();
+  fs.mkdirSync(editionsDir, { recursive: true });
+
+  const now = new Date().toISOString();
+  const normalizedEdition = { ...edition, createdAt: edition.createdAt || now };
+  const edPath = path.join(editionsDir, `${edition.slug}.json`);
+  fs.writeFileSync(edPath, JSON.stringify(normalizedEdition, null, 2) + "\n", "utf8");
+
+  let idx: any = { editions: [] };
+  if (fs.existsSync(indexPath)) {
+    idx = JSON.parse(fs.readFileSync(indexPath, "utf8").replace(/^\uFEFF/, ""));
+  }
+  if (!Array.isArray(idx.editions)) idx.editions = [];
+
+  if (!idx.editions.some((e: any) => e?.slug === edition.slug)) {
+    idx.editions.unshift({ slug: edition.slug, title: edition.title, createdAt: normalizedEdition.createdAt });
+  }
+
+  fs.writeFileSync(indexPath, JSON.stringify(idx, null, 2) + "\n", "utf8");
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
     const rawEditionJsonInput = (body as any)?.rawEditionJson;
     const rawEditionJson = typeof rawEditionJsonInput === "string" ? rawEditionJsonInput : rawEditionJsonInput ? JSON.stringify(rawEditionJsonInput) : "";
+
     const editionInBody = (body as any)?.edition;
 
     const validated = validateEditionJson(
@@ -178,6 +200,7 @@ export async function POST(req: Request) {
         debug: (validated as any).debug,
       });
       return NextResponse.json({ ok: false, error: validated.error, details: (validated as any).details, debug: (validated as any).debug }, { status: 400 });
+     
     }
 
     const edition = validated.obj;
@@ -194,7 +217,6 @@ export async function POST(req: Request) {
 
     const workflow = process.env.GITHUB_WORKFLOW ?? "factory.yml";
     const ref = process.env.GITHUB_REF ?? "main";
-
     const plainPayload = JSON.stringify(edition);
     let res = await dispatchWorkflow({
       owner,
@@ -203,7 +225,7 @@ export async function POST(req: Request) {
       workflow,
       ref,
       inputs: { edition_json: plainPayload },
-    });
+ });
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");

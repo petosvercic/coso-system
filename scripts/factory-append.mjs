@@ -41,6 +41,7 @@ function resolveRawInput() {
 }
 
 const raw0 = resolveRawInput();
+
 const raw = normalizeJsonLike(raw0);
 
 let edition;

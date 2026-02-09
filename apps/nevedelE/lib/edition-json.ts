@@ -24,7 +24,6 @@ function extractJSONObject(input: string) {
   return input.slice(start, end + 1);
 }
 
-
 function slugify(input: string) {
   const base = String(input || "")
     .toLowerCase()
@@ -121,11 +120,13 @@ function normalizeFixture(obj: any) {
   return out;
 }
 
+
 export function normalizeEditionJsonRaw(raw: string) {
   const base = sanitizeRaw(raw);
   const noFence = unwrapCodeFence(base);
   return extractJSONObject(noFence).trim();
 }
+
 
 export function normalizeEditionJsonForBuilder(raw: string) {
   const normalized = normalizeEditionJsonRaw(raw);
@@ -137,6 +138,7 @@ export function normalizeEditionJsonForBuilder(raw: string) {
     return normalized;
   }
 }
+
 
 export function validateEditionJson(raw: string, existingSlugs: string[] = []) {
   const normalized = normalizeEditionJsonRaw(raw);
@@ -180,6 +182,7 @@ export function validateEditionJson(raw: string, existingSlugs: string[] = []) {
   if (existingSlugs.includes(slug)) {
     return { ok: false as const, error: "DUPLICATE_SLUG", details: slug, debug: { foundRootKeys, normalizedStart: normalized.slice(0, 120) } };
   }
+
 
   return { ok: true as const, obj: { ...obj, slug, title: obj.title.trim() } as EditionPayload };
 }
