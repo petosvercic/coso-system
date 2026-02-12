@@ -88,3 +88,26 @@ export function loadEditionBySlug(slug: string): EditionDocument | null {
     return null;
   }
 }
+
+
+export const persistEditionLocally = (edition: EditionDocument) => {
+  const { indexPath, editionsDir } = getDataPaths();
+  fs.mkdirSync(editionsDir, { recursive: true });
+
+  const now = new Date().toISOString();
+  const normalizedEdition = { ...edition, createdAt: edition.createdAt || now };
+  const edPath = path.join(editionsDir, `${edition.slug}.json`);
+  fs.writeFileSync(edPath, JSON.stringify(normalizedEdition, null, 2) + "\n", "utf8");
+
+  let idx: any = { editions: [] };
+  if (fs.existsSync(indexPath)) {
+    idx = readJsonNoBom(indexPath);
+  }
+  if (!Array.isArray(idx.editions)) idx.editions = [];
+
+  if (!idx.editions.some((e: any) => e?.slug === edition.slug)) {
+    idx.editions.unshift({ slug: edition.slug, title: edition.title, createdAt: normalizedEdition.createdAt });
+  }
+
+  fs.writeFileSync(indexPath, JSON.stringify(idx, null, 2) + "\n", "utf8");
+};

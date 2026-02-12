@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getAppUrl } from "../../../../lib/env";
 
 function safeReturnTo(x: unknown) {
   if (typeof x !== "string") return null;
@@ -19,13 +20,12 @@ export async function POST(req: Request) {
     const slug = typeof body?.slug === "string" ? body.slug.trim() : "";
     const returnTo = safeReturnTo(body?.returnTo) ?? "/";
     const priceId = (typeof body?.priceId === "string" ? body.priceId : (process.env.STRIPE_PRICE_ID ?? null));
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
+    const appUrl = getAppUrl();
     const key = process.env.STRIPE_SECRET_KEY ?? null;
 
     if (!rid) return NextResponse.json({ ok: false, error: "MISSING_RID" }, { status: 400 });
     if (!key) return NextResponse.json({ ok: false, error: "MISSING_STRIPE_SECRET_KEY" }, { status: 500 });
     if (!priceId) return NextResponse.json({ ok: false, error: "MISSING_PRICE_ID" }, { status: 500 });
-    if (!appUrl) return NextResponse.json({ ok: false, error: "MISSING_APP_URL" }, { status: 500 });
 
     const stripe = new Stripe(key);
 
