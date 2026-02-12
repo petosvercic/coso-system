@@ -145,10 +145,26 @@ export async function POST(req: Request) {
 
     const editionInBody = (body as any)?.edition;
 
-    const validated = validateEditionJson(
-      rawEditionJson || JSON.stringify(editionInBody ?? {}),
-      listEditions().map((e) => e.slug)
-    );
+    const inputJson = rawEditionJson || JSON.stringify(editionInBody ?? {});
+    let existingSlugs = listEditions().map((e) => e.slug);
+
+    // Source of truth = GitHub index (aby sme nechytili duplicitu kvôli stale deploy)
+    try {
+      const tokenForSlugs = (process.env.GITHUB_TOKEN || "").trim();
+      if (tokenForSlugs) {
+        const { owner, repo } = resolveRepoParts();
+        const refForSlugs = (process.env.GITHUB_REF || "main").trim();
+        const idx = await ghGetContent({ owner, repo, token: tokenForSlugs, path: "apps/nevedelE/data/editions.json", ref: refForSlugs });
+        if (idx?.content) {
+          const parsed = JSON.parse(idx.content.replace(/^\uFEFF/, ""));
+          const arr = Array.isArray(parsed?.editions) ? parsed.editions : [];
+          const slugs = arr.map((x: any) => String(x?.slug || "")).filter(Boolean);
+          if (slugs.length) existingSlugs = slugs;
+        }
+      }
+    } catch {}
+
+    const validated = validateEditionJson(inputJson, existingSlugs);
 
     if (!validated.ok) {
       console.error("dispatch validation failed", {
@@ -246,4 +262,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", message: String(e?.message ?? e) }, { status: 500 });
   }
 }
+
+
 
