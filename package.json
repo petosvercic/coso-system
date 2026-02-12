@@ -18,6 +18,7 @@
     "build:nevedelE": "npm run build -w packages/coso-contract && npm run build -w packages/coso-engine && npm run build -w apps/nevedelE",
     "git:pipeline": "bash scripts/codex-git-pipeline.sh",
     "test:smoke:editions": "node scripts/smoke-editions-routes.mjs",
+    "gen:edition": "node scripts/generate-edition.js"
     "validate:content": "node scripts/validate-content-pack.mjs",
     "typecheck": "npm run build:nevedelE",
     "lint": "node scripts/doctor.mjs",

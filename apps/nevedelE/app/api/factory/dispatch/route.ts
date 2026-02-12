@@ -8,8 +8,11 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
-import { getDataPaths, listEditions } from "../../../../lib/editions-store";
-import { persistEditionLocally } from "@/lib/editions-store";
+import { getDataPaths, listEditions, persistEditionLocally } from "../../../../lib/editions-store";
+
+void fs;
+void path;
+void getDataPaths;
 
 function resolveRepoParts() {
   const repoRaw = (process.env.GITHUB_REPO || "").trim();

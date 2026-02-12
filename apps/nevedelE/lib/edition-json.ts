@@ -117,6 +117,33 @@ function normalizeFixture(obj: any) {
     out.engine = { subject: String(out.slug || "edition").replace(/-/g, "_"), locale: "sk" };
   }
 
+  // ---- tasks schema hardening (accept aliases, force pool shape) ----
+  if (out.tasks && Array.isArray(out.tasks.categories)) {
+    out.tasks = {
+      ...out.tasks,
+      pickPerCategory: typeof out.tasks.pickPerCategory === "number" ? out.tasks.pickPerCategory : 25,
+      categories: out.tasks.categories.map((cat: any, cidx: number) => {
+        const key = String(cat?.key || cat?.id || `cat-${cidx + 1}`);
+        const title = String(cat?.title || `Kategória ${cidx + 1}`);
+
+        // accept both `pool` and legacy `tasks`
+        const rawPool = Array.isArray(cat?.pool) ? cat.pool : Array.isArray(cat?.tasks) ? cat.tasks : [];
+
+        const pool = rawPool.map((t: any, tidx: number) => {
+          const variants = Array.isArray(t?.variants) ? t.variants : [];
+          return {
+            id: String(t?.id || `t${cidx + 1}-${tidx + 1}`),
+            title: String(t?.title || `Task ${tidx + 1}`),
+            metricKey: String(t?.metricKey || `m_${cidx + 1}_${tidx + 1}`),
+            variants,
+          };
+        });
+
+        return { key, title, pool };
+      }),
+    };
+  }
+
   return out;
 }
 
@@ -181,6 +208,51 @@ export function validateEditionJson(raw: string, existingSlugs: string[] = []) {
   }
   if (existingSlugs.includes(slug)) {
     return { ok: false as const, error: "DUPLICATE_SLUG", details: slug, debug: { foundRootKeys, normalizedStart: normalized.slice(0, 120) } };
+  }
+
+  // ---- tasks validation (if present) ----
+  if (obj.tasks !== undefined) {
+    const tasks = obj.tasks;
+    if (!tasks || typeof tasks !== "object" || Array.isArray(tasks)) {
+      return { ok: false as const, error: "TASKS_NOT_OBJECT", debug: { foundRootKeys } };
+    }
+
+    if (tasks.pickPerCategory !== 25) {
+      return { ok: false as const, error: "TASKS_PICK_NOT_25", details: tasks.pickPerCategory, debug: { foundRootKeys } };
+    }
+
+    if (!Array.isArray(tasks.categories) || tasks.categories.length !== 5) {
+      return { ok: false as const, error: "TASKS_NOT_5_CATEGORIES", details: Array.isArray(tasks.categories) ? tasks.categories.length : null, debug: { foundRootKeys } };
+    }
+
+    for (let ci = 0; ci < tasks.categories.length; ci++) {
+      const cat = tasks.categories[ci];
+      const pool = Array.isArray(cat?.pool) ? cat.pool : Array.isArray(cat?.tasks) ? cat.tasks : null;
+      if (!Array.isArray(pool)) {
+        return { ok: false as const, error: "CATEGORY_POOL_MISSING", details: `cat#${ci + 1}`, debug: { foundRootKeys } };
+      }
+      if (pool.length !== 50) {
+        return { ok: false as const, error: "CATEGORY_POOL_NOT_50", details: `cat#${ci + 1} len=${pool.length}`, debug: { foundRootKeys } };
+      }
+
+      for (let ti = 0; ti < pool.length; ti++) {
+        const t = pool[ti];
+        if (typeof t?.id !== "string" || !t.id.trim()) return { ok: false as const, error: "TASK_ID_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
+        if (typeof t?.title !== "string" || !t.title.trim()) return { ok: false as const, error: "TASK_TITLE_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
+        if (typeof t?.metricKey !== "string" || !t.metricKey.trim()) return { ok: false as const, error: "TASK_METRICKEY_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
+
+        const variants = Array.isArray(t?.variants) ? t.variants : null;
+        if (!variants || variants.length !== 3) return { ok: false as const, error: "TASK_VARIANTS_NOT_3", details: `cat#${ci + 1} task#${ti + 1}` };
+
+        const hasLte = variants.some((v: any) => typeof v?.when?.lte === "number" && typeof v?.text === "string");
+        const hasBetween = variants.some((v: any) => Array.isArray(v?.when?.between) && v.when.between.length === 2 && typeof v?.text === "string");
+        const hasGte = variants.some((v: any) => typeof v?.when?.gte === "number" && typeof v?.text === "string");
+
+        if (!hasLte || !hasBetween || !hasGte) {
+          return { ok: false as const, error: "TASK_VARIANTS_BAD_SHAPE", details: `cat#${ci + 1} task#${ti + 1}` };
+        }
+      }
+    }
   }
 
 
