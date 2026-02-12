@@ -14,8 +14,9 @@ function safeReturnTo(x: unknown) {
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as null | { rid?: unknown; returnTo?: unknown; priceId?: unknown };
+    const body = (await req.json().catch(() => null)) as null | { rid?: unknown; slug?: unknown; returnTo?: unknown; priceId?: unknown };
     const rid = typeof body?.rid === "string" ? body.rid : null;
+    const slug = typeof body?.slug === "string" ? body.slug.trim() : "";
     const returnTo = safeReturnTo(body?.returnTo) ?? "/";
     const priceId = (typeof body?.priceId === "string" ? body.priceId : (process.env.STRIPE_PRICE_ID ?? null));
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: success,
       cancel_url: cancel,
-      metadata: { rid },
+      metadata: { rid, ...(slug ? { slug } : {}) },
       client_reference_id: rid,
     });
 
