@@ -10,10 +10,6 @@ import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
 import { getDataPaths, listEditions, persistEditionLocally } from "../../../../lib/editions-store";
 
-void fs;
-void path;
-void getDataPaths;
-
 function resolveRepoParts() {
   const repoRaw = (process.env.GITHUB_REPO || "").trim();
   const ownerRaw = (process.env.GITHUB_OWNER || "").trim();
