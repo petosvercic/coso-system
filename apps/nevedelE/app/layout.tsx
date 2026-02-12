@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { assertServerEnv } from "../lib/env";
 import "./globals.css";
+
+assertServerEnv();
 
 export const metadata: Metadata = {
   title: "nevedelE",

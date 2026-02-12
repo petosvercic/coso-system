@@ -1,11 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import fs from "node:fs";
-import path from "node:path";
-import zlib from "node:zlib";
 import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
 import { getDataPaths, listEditions, persistEditionLocally } from "../../../../lib/editions-store";
+import zlib from "node:zlib";
 
 function resolveRepoParts() {
   const repoRaw = (process.env.GITHUB_REPO || "").trim();
@@ -86,7 +84,7 @@ async function persistEditionInGithub(args: { owner: string; repo: string; token
 
   if (idxCurrent?.content) {
     try {
-      idx = JSON.parse(idxCurrent.content.replace(/^﻿/, ""));
+      idx = JSON.parse(idxCurrent.content.replace(/^ď»ż/, ""));
     } catch {
       idx = { editions: [] };
     }
@@ -245,3 +243,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", message: String(e?.message ?? e) }, { status: 500 });
   }
 }
+
