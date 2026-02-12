@@ -43,3 +43,8 @@ export function assertPaymentsEnv(): EnvValidation {
   const missing = required.filter((key) => !process.env[key]);
   return { ok: missing.length === 0, missing: [...missing] };
 }
+export function getAppUrl(): string {
+  const raw = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
+  if (!raw) throw new Error("[env] Missing NEXT_PUBLIC_APP_URL");
+  return raw.replace(/\/+$/, "");
+}
