@@ -17,6 +17,15 @@
     "verify": "node scripts/doctor.mjs && npm run build && node scripts/doctor.mjs --postbuild",
     "build:nevedelE": "npm run build -w packages/coso-contract && npm run build -w packages/coso-engine && npm run build -w apps/nevedelE",
     "git:pipeline": "bash scripts/codex-git-pipeline.sh",
-    "test:smoke:editions": "node scripts/smoke-editions-routes.mjs"
+    "test:smoke:editions": "node scripts/smoke-editions-routes.mjs",
+    "validate:content": "node scripts/validate-content-pack.mjs",
+    "typecheck": "npm run build:nevedelE",
+    "lint": "node scripts/doctor.mjs",
+    "test:unit": "npx vitest run apps/nevedelE/app/one-day/*.test.ts",
+    "test:flow-contract": "npx vitest run apps/nevedelE/app/one-day/flow.contract.test.ts",
+    "validate:content:all": "npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-a.sk.json && npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-a.en.json && npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-b.sk.json && npm run validate:content -- apps/nevedelE/app/one-day/content/packs/pack-b.en.json",
+    "test:e2e:golden": "npx vitest run apps/nevedelE/app/one-day/golden-path.test.ts",
+    "release:check": "npm run validate:env && npm run typecheck && npm run lint && npm run test:unit && npm run validate:content:all && npm run test:flow-contract && npm run test:e2e:golden",
+    "validate:env": "node scripts/validate-env.mjs"
   }
 }

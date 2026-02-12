@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -87,7 +87,7 @@ async function persistEditionInGithub(args: { owner: string; repo: string; token
 
   if (idxCurrent?.content) {
     try {
-      idx = JSON.parse(idxCurrent.content.replace(/^﻿/, ""));
+      idx = JSON.parse(idxCurrent.content.replace(/^ď»ż/, ""));
     } catch {
       idx = { editions: [] };
     }
@@ -135,28 +135,6 @@ async function dispatchWorkflow(args: {
     },
     body: JSON.stringify({ ref: args.ref, inputs: args.inputs }),
   });
-}
-
-function persistEditionLocally(edition: any) {
-  const { indexPath, editionsDir } = getDataPaths();
-  fs.mkdirSync(editionsDir, { recursive: true });
-
-  const now = new Date().toISOString();
-  const normalizedEdition = { ...edition, createdAt: edition.createdAt || now };
-  const edPath = path.join(editionsDir, `${edition.slug}.json`);
-  fs.writeFileSync(edPath, JSON.stringify(normalizedEdition, null, 2) + "\n", "utf8");
-
-  let idx: any = { editions: [] };
-  if (fs.existsSync(indexPath)) {
-    idx = JSON.parse(fs.readFileSync(indexPath, "utf8").replace(/^\uFEFF/, ""));
-  }
-  if (!Array.isArray(idx.editions)) idx.editions = [];
-
-  if (!idx.editions.some((e: any) => e?.slug === edition.slug)) {
-    idx.editions.unshift({ slug: edition.slug, title: edition.title, createdAt: normalizedEdition.createdAt });
-  }
-
-  fs.writeFileSync(indexPath, JSON.stringify(idx, null, 2) + "\n", "utf8");
 }
 
 export async function POST(req: Request) {
@@ -268,3 +246,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", message: String(e?.message ?? e) }, { status: 500 });
   }
 }
+
