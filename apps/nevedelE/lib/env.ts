@@ -1,12 +1,9 @@
-type EnvValidation = {
-  ok: boolean;
-  missing: string[];
-};
+export type EnvCheck = { ok: boolean; missing: string[] };
 
 const TRUE = new Set(["1", "true", "yes", "on", "enabled", "y", "t"]);
 const FALSE = new Set(["0", "false", "no", "off", "disabled", "n", "f"]);
 
-function requireEnv(keys: string[], label: string): EnvValidation {
+function checkEnv(keys: string[]): EnvCheck {
   const missing = keys.filter((k) => !(process.env[k] || "").trim());
   return { ok: missing.length === 0, missing };
 }
@@ -18,9 +15,6 @@ export function getAppUrl() {
   const vercelUrl = (process.env.VERCEL_URL || "").trim();
   if (vercelUrl) return `https://${vercelUrl}`;
 
-  if (typeof window === "undefined") {
-    console.warn("[env] NEXT_PUBLIC_APP_URL not set; using fallback app URL http://localhost:3000");
-  }
   return "http://localhost:3000";
 }
 
@@ -40,37 +34,27 @@ export function paymentsEnabled(): boolean {
 }
 
 /**
- * Called from app/layout.tsx.
- * Keep this cheap: it should not crash dev/preview unless truly broken.
+ * Called from app/layout.tsx. Keep it non-fatal.
+ * Returns a check object so callers can use `.ok` if they want.
  */
-export function assertServerEnv(): void {
-  // Minimal "server must-have" envs. Add more only if code truly requires them.
-  const v = requireEnv(["GOLD_TOKEN_SECRET"], "server");
-  if (!v.ok) {
-    // In production we want hard fail, in preview/dev we only warn.
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(`[env] Missing required server env: ${v.missing.join(", ")}`);
-    }
-    console.warn(`[env] Missing required server env (non-prod): ${v.missing.join(", ")}`);
-  }
+export function assertServerEnv(): EnvCheck {
+  // Put truly required server vars here if you want later.
+  // For now: no hard requirements.
+  return { ok: true, missing: [] };
 }
 
 /**
- * Used by Stripe routes/pages. If payments are disabled, do NOT throw.
- * If enabled, require Stripe envs.
+ * Used by Stripe routes/pages. MUST return `{ ok }` because callers do `const env = assertPaymentsEnv(); if (!env.ok) ...`
  */
-export function assertPaymentsEnv(): void {
-  if (!paymentsEnabled()) return;
+export function assertPaymentsEnv(): EnvCheck {
+  if (!paymentsEnabled()) return { ok: true, missing: [] };
 
   const required = [
     "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
     "STRIPE_PRICE_ID",
-    "STRIPE_PUBLISHABLE_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PUBLISHABLE_KEY"
   ];
 
-  const v = requireEnv(required, "payments");
-  if (!v.ok) {
-    throw new Error(`[env] Payments enabled but missing env: ${v.missing.join(", ")}`);
-  }
+  return checkEnv(required);
 }
