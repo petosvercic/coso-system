@@ -5,8 +5,11 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
-import { getDataPaths, listEditions } from "../../../../lib/editions-store";
-import { persistEditionLocally } from "@/lib/editions-store";
+import { getDataPaths, listEditions, persistEditionLocally } from "../../../../lib/editions-store";
+
+void fs;
+void path;
+void getDataPaths;
 
 function resolveRepoParts() {
   const repoRaw = (process.env.GITHUB_REPO || "").trim();
@@ -135,28 +138,6 @@ async function dispatchWorkflow(args: {
     },
     body: JSON.stringify({ ref: args.ref, inputs: args.inputs }),
   });
-}
-
-function persistEditionLocally(edition: any) {
-  const { indexPath, editionsDir } = getDataPaths();
-  fs.mkdirSync(editionsDir, { recursive: true });
-
-  const now = new Date().toISOString();
-  const normalizedEdition = { ...edition, createdAt: edition.createdAt || now };
-  const edPath = path.join(editionsDir, `${edition.slug}.json`);
-  fs.writeFileSync(edPath, JSON.stringify(normalizedEdition, null, 2) + "\n", "utf8");
-
-  let idx: any = { editions: [] };
-  if (fs.existsSync(indexPath)) {
-    idx = JSON.parse(fs.readFileSync(indexPath, "utf8").replace(/^\uFEFF/, ""));
-  }
-  if (!Array.isArray(idx.editions)) idx.editions = [];
-
-  if (!idx.editions.some((e: any) => e?.slug === edition.slug)) {
-    idx.editions.unshift({ slug: edition.slug, title: edition.title, createdAt: normalizedEdition.createdAt });
-  }
-
-  fs.writeFileSync(indexPath, JSON.stringify(idx, null, 2) + "\n", "utf8");
 }
 
 export async function POST(req: Request) {
