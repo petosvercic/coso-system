@@ -26,14 +26,15 @@ function sanitizeBirthDateInput(s: string) {
   const raw = String(s || "").trim();
   const digitsOnly = raw.replace(/\D/g, "").slice(0, 8);
 
+  // Ak user píše len čísla, pomáhame bodkami: dd.mm.yyyy
   if (/^\d*$/.test(raw)) {
     if (digitsOnly.length <= 2) return digitsOnly;
     if (digitsOnly.length <= 4) return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2)}`;
     return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2, 4)}.${digitsOnly.slice(4)}`;
   }
 
+  // Inak len orež
   return raw.slice(0, 10);
-  return String(s || "").trim().slice(0, 10);
 }
 
 function normalizeBirthDate(s: string) {
@@ -89,8 +90,10 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     const sp = new URLSearchParams(searchParams?.toString() ?? "");
     if (bd) sp.set("birthDate", bd);
     else sp.delete("birthDate");
+
     if (nm) sp.set("name", nm);
     else sp.delete("name");
+
     sp.set("slug", slug);
 
     const q = sp.toString();
@@ -117,12 +120,13 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
     const payload = (json?.result ?? json) as EngineResult;
     const nextRid = makeRid(slug, bd);
+
     setResult(payload);
     setRid(nextRid);
     localStorage.setItem(`coso:result:${slug}`, JSON.stringify(payload));
   }
 
-  // RID init: URL only (canonical identity = slug + birthDate)
+  // Init z URL (birthDate, name, rid)
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
@@ -136,16 +140,16 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       if (ridFromUrl) {
         setRid(ridFromUrl);
 
-        const [, bdFromRid] = ridFromUrl.split(":", 2);
+        const parts = ridFromUrl.split(":");
+        const bdFromRid = parts.length >= 2 ? parts.slice(1).join(":") : "";
         if (bdFromRid && /^\d{4}-\d{2}-\d{2}$/.test(bdFromRid)) {
           setBirthDate(bdFromRid);
         }
-        return;
       }
     } catch {}
   }, [slug]);
 
-  // Restore result (aby refresh nezmazal výsledok)
+  // Restore result (refresh nezmaže výsledok)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(`coso:result:${slug}`);
@@ -153,7 +157,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     } catch {}
   }, [slug]);
 
-  // Payment verify (return zo Stripe aj bežný refresh)
+  // Payment verify (návrat zo Stripe aj bežný refresh)
   useEffect(() => {
     (async () => {
       try {
@@ -165,7 +169,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
         // návrat zo Stripe
         if (sessionId) {
-        const r = await fetch(
+          const r = await fetch(
             `/api/pay/status?session_id=${encodeURIComponent(sessionId)}&rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`,
             { cache: "no-store" }
           );
@@ -179,7 +183,10 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         }
 
         // refresh: check KV podľa rid
-        const r = await fetch(`/api/pay/status?rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
+        const r = await fetch(
+          `/api/pay/status?rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`,
+          { cache: "no-store" }
+        );
         const json = await r.json();
         if (json?.paid) setPaid(true);
       } catch (e) {
@@ -188,32 +195,26 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     })();
   }, [rid, slug]);
 
+  // Auto compute (keď máme birthDate a ešte sme nepočítali)
   useEffect(() => {
     if (autoComputeDone || result || !birthDate) return;
-   
-    if (autoComputeDone || result) return;
-    if (!rid || !birthDate) return;
-
-    const expectedRid = makeRid(slug, birthDate);
-    if (!expectedRid || expectedRid !== rid) return;
 
     (async () => {
       try {
         await computeForBirthDate(birthDate, name);
       } catch {
-        // keep silent; user can compute manually
+        // silent; user can compute manually
       } finally {
         setAutoComputeDone(true);
       }
     })();
-  }, [autoComputeDone, birthDate, name, paid, result, rid, slug]);
-  }, [autoComputeDone, birthDate, name, result, rid, slug]);
+  }, [autoComputeDone, birthDate, name, result, slug]);
 
   const visible = useMemo(() => {
     if (!result?.categories?.length) return null;
     if (paid) return result;
 
-    // TEASER: 1 kategória, 1 item s textom
+    // TEASER: 1 kategória, 1 item
     const cats = result.categories.slice(0, 1).map((cat) => ({
       ...cat,
       items: (cat.items ?? []).map((it, idx) => ({
@@ -241,15 +242,17 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
     try {
       persistInputsToUrl(birthDate, name);
+
       const effectiveRid = (rid || makeRid(slug, birthDate)).trim();
       if (!effectiveRid) throw new Error("Najprv vyplň dátum narodenia a vyhodnoť výsledok.");
+
       const normalizedBirthDate = normalizeBirthDate(birthDate);
       const trimmedName = (name || "").trim();
+
       const returnSp = new URLSearchParams({ slug });
       if (normalizedBirthDate) returnSp.set("birthDate", normalizedBirthDate);
       if (trimmedName) returnSp.set("name", trimmedName);
-      const effectiveRid = (rid || makeRid(slug, birthDate)).trim();
-      if (!effectiveRid) throw new Error("Najprv vyplň dátum narodenia a vyhodnoť výsledok.");
+      returnSp.set("rid", effectiveRid);
 
       const r = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -316,31 +319,33 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
           <span className="badge">paid: {String(paid)}</span>
         </div>
 
-        {!result && (<div className="card">
-          <div className="row">
-            <input
-              className="input"
-              placeholder="Meno (voliteľné)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <input
-              className="input"
-              placeholder="YYYY-MM-DD alebo dd.mm.rrrr"
-              value={birthDate}
-              onChange={(e) => setBirthDate(sanitizeBirthDateInput(e.target.value))}
-            />
-            <button className="btn" onClick={onCompute}>
-              Vyhodnotiť
-            </button>
-                      </div>
-
-          {err ? (
-            <div style={{ marginTop: 10 }} className="err">
-              {err}
+        {!result ? (
+          <div className="card">
+            <div className="row">
+              <input
+                className="input"
+                placeholder="Meno (voliteľné)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <input
+                className="input"
+                placeholder="YYYY-MM-DD alebo dd.mm.rrrr"
+                value={birthDate}
+                onChange={(e) => setBirthDate(sanitizeBirthDateInput(e.target.value))}
+              />
+              <button className="btn" onClick={onCompute}>
+                Vyhodnotiť
+              </button>
             </div>
-          ) : null}
-        </div>)}
+
+            {err ? (
+              <div style={{ marginTop: 10 }} className="err">
+                {err}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {visible?.categories?.length ? (
           <div className="card">
@@ -355,7 +360,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
               </div>
 
               {!paid ? (
-                <button className="btn secondary" disabled={payBusy || !rid} onClick={onCheckout}>
+                <button className="btn secondary" disabled={payBusy || !(rid || makeRid(slug, birthDate))} onClick={onCheckout}>
                   {payBusy ? "Presmerovávam..." : "Pokračovať na platbu"}
                 </button>
               ) : (
@@ -376,17 +381,18 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
                       {typeof cat.percentile === "number" ? <span className="pill">Percentil: {cat.percentile}</span> : null}
                     </div>
                   </div>
+
                   {(cat.insight ?? "").trim() ? <p className="catText">{cat.insight}</p> : null}
                   {(cat.recommendation ?? "").trim() && paid ? <p className="catText">{cat.recommendation}</p> : null}
+
                   <div className="grid">
                     {(cat.items ?? []).map((it, idx) => {
                       const locked = !paid && idx !== 0;
                       return (
                         <div className={`item ${locked ? "locked" : ""}`} key={it.id ?? idx}>
                           <h3>{it.title ?? `Položka ${idx + 1}`}</h3>
-                          {typeof it.value === "number" ? (
-                            <div className="meta">Hodnota: {it.value}</div>
-                          ) : null}
+                          {typeof it.value === "number" ? <div className="meta">Hodnota: {it.value}</div> : null}
+
                           {locked ? (
                             <div>Skryté. Sprístupní sa po platbe.</div>
                           ) : (
@@ -410,6 +416,10 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
     </div>
   );
 }
