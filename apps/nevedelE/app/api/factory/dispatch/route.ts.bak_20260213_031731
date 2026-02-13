@@ -85,7 +85,7 @@ async function persistEditionInGithub(args: { owner: string; repo: string; token
 
   if (idxCurrent?.content) {
     try {
-      idx = JSON.parse(idxCurrent.content.replace(/^/, ""));
+      idx = JSON.parse(idxCurrent.content.replace(/^ÄŹÂ»ĹĽ/, ""));
     } catch {
       idx = { editions: [] };
     }
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
     const inputJson = rawEditionJson || JSON.stringify(editionInBody ?? {});
     let existingSlugs = listEditions().map((e) => e.slug);
 
-    // Source of truth = GitHub index (aby sme nechytili duplicitu kvli stale deploy)
+    // Source of truth = GitHub index (aby sme nechytili duplicitu kvĂ´li stale deploy)
     try {
       const tokenForSlugs = (process.env.GITHUB_TOKEN || "").trim();
       if (tokenForSlugs) {
