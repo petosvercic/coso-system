@@ -14,7 +14,16 @@ type Edition = {
 };
 
 function sanitizeBirthDateInput(s: string) {
-  return String(s || "").trim().slice(0, 10);
+  const raw = String(s || "").trim();
+  const digitsOnly = raw.replace(/\D/g, "").slice(0, 8);
+
+  if (/^\d*$/.test(raw)) {
+    if (digitsOnly.length <= 2) return digitsOnly;
+    if (digitsOnly.length <= 4) return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2)}`;
+    return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2, 4)}.${digitsOnly.slice(4)}`;
+  }
+
+  return raw.slice(0, 10);
 }
 
 function normalizeBirthDate(s: string) {
