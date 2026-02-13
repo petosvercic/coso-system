@@ -40,6 +40,24 @@ function pickVariant(variants: any[], value: number) {
   return variants?.[0] ?? null;
 }
 
+function normalizeTask(task: any, catIndex: number, taskIndex: number) {
+  if (typeof task === "string") {
+    const title = task.trim() || `Task ${taskIndex + 1}`;
+    return {
+      id: `t${catIndex + 1}-${taskIndex + 1}`,
+      title,
+      metricKey: `m_${catIndex + 1}_${taskIndex + 1}`,
+      variants: [
+        { when: { lte: 33 }, text: title },
+        { when: { between: [34, 66] }, text: `${title} (stred)` },
+        { when: { gte: 67 }, text: `${title} (silné)` },
+      ],
+    };
+  }
+
+  return task;
+}
+
 function readEdition(slug: string) {
   const edPath = path.join(process.cwd(), "data", "editions", `${slug}.json`);
   if (!fs.existsSync(edPath)) return null;
@@ -77,7 +95,7 @@ export async function POST(req: Request) {
       }
 
       const base = await compute(parsed.data);
-      const seed = hashStr(JSON.stringify(base)) ^ hashStr(`${editionSlug}|${birthDate}|${name}|${locale}`);
+      const seed = hashStr(JSON.stringify(base)) ^ hashStr(`${editionSlug}|${birthDate}|${locale}`);
       const rng = makeRng(seed);
 
       const cats = edition?.tasks?.categories;
@@ -85,11 +103,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "TASKS_MISSING_OR_NOT_5_CATEGORIES" }, { status: 400 });
       }
 
+      const pickPerCategoryRaw = Number((edition as any)?.tasks?.pickPerCategory ?? 3);
+      const pickPerCategory = Number.isFinite(pickPerCategoryRaw)
+        ? Math.max(1, Math.min(5, Math.floor(pickPerCategoryRaw)))
+        : 3;
+
       const outCats = cats.map((cat: any, ci: number) => {
-        const pool = Array.isArray(cat?.pool) ? cat.pool : [];
-        const pickPerCategoryRaw = Number((edition as any)?.tasks?.pickPerCategory ?? 5);
-        const pickPerCategory = Number.isFinite(pickPerCategoryRaw) ? Math.max(1, Math.min(25, Math.floor(pickPerCategoryRaw))) : 5;
-        if (pool.length < 1) throw new Error(`CATEGORY_${ci + 1}_POOL_EMPTY`);
+        const poolRaw = Array.isArray(cat?.pool) ? cat.pool : [];
+        const pool = poolRaw.map((t: any, tidx: number) => normalizeTask(t, ci, tidx));
+        if (pool.length < pickPerCategory) {
+          throw new Error(`CATEGORY_${ci + 1}_POOL_TOO_SMALL`);
+        }
 
         const idx = pool.map((_: any, i: number) => i);
         for (let i = idx.length - 1; i > 0; i--) {
@@ -97,18 +121,7 @@ export async function POST(req: Request) {
           [idx[i], idx[j]] = [idx[j], idx[i]];
         }
 
-        const chosen = (() => {
-          if (pool.length >= pickPerCategory) {
-            return idx.slice(0, pickPerCategory).map((i) => pool[i]);
-          }
-          // if pool is smaller than required, sample with replacement for consistent UI
-          const out: any[] = [];
-          for (let k = 0; k < pickPerCategory; k++) {
-            const i = Math.floor(rng() * pool.length);
-            out.push(pool[i]);
-          }
-          return out;
-        })();
+        const chosen = idx.slice(0, pickPerCategory).map((i) => pool[i]);
 
         const items = chosen.map((t: any) => {
           const tid = String(t?.id ?? "");
