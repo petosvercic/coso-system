@@ -1,4 +1,4 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -6,8 +6,6 @@ import zlib from "node:zlib";
 import { NextResponse } from "next/server";
 import { validateEditionJson } from "../../../../lib/edition-json";
 import { getDataPaths, listEditions } from "../../../../lib/editions-store";
-import { persistEditionLocally } from "@/lib/editions-store";
-
 function resolveRepoParts() {
   const repoRaw = (process.env.GITHUB_REPO || "").trim();
   const ownerRaw = (process.env.GITHUB_OWNER || "").trim();
@@ -87,7 +85,7 @@ async function persistEditionInGithub(args: { owner: string; repo: string; token
 
   if (idxCurrent?.content) {
     try {
-      idx = JSON.parse(idxCurrent.content.replace(/^ď»ż/, ""));
+      idx = JSON.parse(idxCurrent.content.replace(/^ÄŹÂ»ĹĽ/, ""));
     } catch {
       idx = { editions: [] };
     }
@@ -148,7 +146,7 @@ export async function POST(req: Request) {
     const inputJson = rawEditionJson || JSON.stringify(editionInBody ?? {});
     let existingSlugs = listEditions().map((e) => e.slug);
 
-    // Source of truth = GitHub index (aby sme nechytili duplicitu kvôli stale deploy)
+    // Source of truth = GitHub index (aby sme nechytili duplicitu kvĂ´li stale deploy)
     try {
       const tokenForSlugs = (process.env.GITHUB_TOKEN || "").trim();
       if (tokenForSlugs) {
@@ -179,7 +177,11 @@ export async function POST(req: Request) {
     const edition = validated.obj;
 
     try {
-      persistEditionLocally(edition);
+      const token = (process.env.GITHUB_TOKEN || "").trim();
+      if (!token) throw new Error("Missing GITHUB_TOKEN");
+      const { owner, repo } = resolveRepoParts();
+      const ref = (process.env.GITHUB_REF || "main").trim();
+      await persistEditionInGithub({ owner, repo, token, ref, edition });
     } catch (e: any) {
       console.warn("local persist skipped", String(e?.message ?? e));
     }
@@ -262,6 +264,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", message: String(e?.message ?? e) }, { status: 500 });
   }
 }
-
 
 
