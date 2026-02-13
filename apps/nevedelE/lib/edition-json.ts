@@ -135,7 +135,7 @@ function normalizeFixture(obj: any) {
 
   if (!out.tasks && Array.isArray(out.categories)) {
     out.tasks = {
-      pickPerCategory: 25,
+      pickPerCategory: 3,
       categories: out.categories.map((cat: any, cidx: number) => {
         const tasks = Array.isArray(cat?.tasks) ? cat.tasks : [];
         return {
@@ -227,8 +227,8 @@ function normalizeFixture(obj: any) {
 
     out.tasks = {
       ...out.tasks,
-      // allow any 1..25 (UI stays sane); compute will clamp too
-      pickPerCategory: clampInt(out.tasks.pickPerCategory, 1, 25, 5),
+      // allow 1..5 (canonical pick range); compute mirrors this clamp
+      pickPerCategory: clampInt(out.tasks.pickPerCategory, 1, 5, 3),
       categories: out.tasks.categories.map((cat: any, cidx: number) => {
         const key = String(cat?.key || cat?.id || `cat-${cidx + 1}`);
         const title = String(cat?.title || `Kategória ${cidx + 1}`);
@@ -383,8 +383,8 @@ return {
     }
 
     // allow any sane number; compute/UI will clamp as needed
-    const pick = Number((tasks as any).pickPerCategory ?? 5);
-    if (!Number.isFinite(pick) || pick < 1 || pick > 25) {
+    const pick = Number((tasks as any).pickPerCategory ?? 3);
+    if (!Number.isFinite(pick) || pick < 1 || pick > 5) {
       return { ok: false as const, error: "TASKS_PICK_OUT_OF_RANGE", details: (tasks as any).pickPerCategory, debug: { foundRootKeys } };
     }
 
@@ -398,8 +398,9 @@ return {
       if (!Array.isArray(pool)) {
         return { ok: false as const, error: "CATEGORY_POOL_MISSING", details: `cat#${ci + 1}`, debug: { foundRootKeys } };
       }
-      if (pool.length < 1) {
-        return { ok: false as const, error: "CATEGORY_POOL_TOO_SMALL", details: `cat#${ci + 1} len=${pool.length} (min 1)`, debug: { foundRootKeys } };
+      const minPool = Math.max(5, Math.floor(pick));
+      if (pool.length < minPool) {
+        return { ok: false as const, error: "CATEGORY_POOL_TOO_SMALL", details: `cat#${ci + 1} len=${pool.length} (min ${minPool})`, debug: { foundRootKeys } };
       }
 
       for (let ti = 0; ti < pool.length; ti++) {

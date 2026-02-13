@@ -12,38 +12,29 @@ type Edition = {
   content?: any;
 };
 
-function formatBirthDateInput(s: string) {
-  const d = s.replace(/\D/g, "").slice(0, 8);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0, 2)}.${d.slice(2)}`;
-  return `${d.slice(0, 2)}.${d.slice(2, 4)}.${d.slice(4)}`;
+function sanitizeBirthDateInput(s: string) {
+  return String(s || "").trim().slice(0, 10);
 }
 
 function normalizeBirthDate(s: string) {
   const t = (s || "").trim();
   if (!t) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
   if (/^\d{2}\.\d{2}\.\d{4}$/.test(t)) {
     const [dd, mm, yyyy] = t.split(".");
     return `${yyyy}-${mm}-${dd}`;
   }
+  if (/^\d{8}$/.test(t)) {
+    // ddMMyyyy
+    return `${t.slice(4, 8)}-${t.slice(2, 4)}-${t.slice(0, 2)}`;
+  }
   return t;
 }
 
-function makeRid(slug: string) {
-  const key = `coso:device`;
-  let dev = "";
-  try {
-    dev = localStorage.getItem(key) || "";
-    if (!dev) {
-      // @ts-ignore
-      dev = (globalThis.crypto?.randomUUID?.() ?? "") || "";
-      if (!dev) dev = Math.random().toString(16).slice(2) + Date.now().toString(16);
-      localStorage.setItem(key, dev);
-    }
-  } catch {
-    dev = Math.random().toString(16).slice(2) + Date.now().toString(16);
-  }
-  return `${slug}:${dev}`;
+function makeRid(slug: string, rawBirthDate: string) {
+  const birthDate = normalizeBirthDate(rawBirthDate);
+  if (!birthDate) return "";
+  return `${slug}:${birthDate}`;
 }
 
 export default function EditionClient({ slug, edition }: { slug: string; edition: Edition }) {
@@ -58,33 +49,50 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
   const [result, setResult] = useState<EngineResult | null>(null);
   const [payBusy, setPayBusy] = useState(false);
+  const [autoComputeDone, setAutoComputeDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // RID init: URL -> localStorage -> generate
+  async function computeForBirthDate(bdRaw: string, displayName: string) {
+    const bd = normalizeBirthDate(bdRaw);
+    if (!bd) throw new Error("Zadaj dátum narodenia.");
+
+    const r = await fetch("/api/compute", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        editionSlug: slug,
+        name: (displayName || "").trim() || "",
+        birthDate: bd,
+        locale,
+      }),
+    });
+
+    const json = await r.json();
+    if (!r.ok) throw new Error(json?.error || "COMPUTE_FAILED");
+
+    const payload = (json?.result ?? json) as EngineResult;
+    const nextRid = makeRid(slug, bd);
+    setResult(payload);
+    setRid(nextRid);
+    localStorage.setItem(`coso:result:${slug}`, JSON.stringify(payload));
+  }
+
+  // RID init: URL only (canonical identity = slug + birthDate)
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
       const ridFromUrl = (url.searchParams.get("rid") || "").trim();
-      const key = `coso:rid:${slug}`;
 
       if (ridFromUrl) {
-        localStorage.setItem(key, ridFromUrl);
         setRid(ridFromUrl);
+
+        const [, bdFromRid] = ridFromUrl.split(":", 2);
+        if (bdFromRid && /^\d{4}-\d{2}-\d{2}$/.test(bdFromRid)) {
+          setBirthDate(bdFromRid);
+        }
         return;
       }
-
-      const cached = (localStorage.getItem(key) || "").trim();
-      if (cached) {
-        setRid(cached);
-        return;
-      }
-
-      const fresh = makeRid(slug);
-      localStorage.setItem(key, fresh);
-      setRid(fresh);
-    } catch {
-      setRid(makeRid(slug));
-    }
+    } catch {}
   }, [slug]);
 
   // Restore result (aby refresh nezmazal výsledok)
@@ -107,8 +115,8 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
         // návrat zo Stripe
         if (sessionId) {
-          const r = await fetch(
-            `/api/pay/status?session_id=${encodeURIComponent(sessionId)}&rid=${encodeURIComponent(effectiveRid)}`,
+        const r = await fetch(
+            `/api/pay/status?session_id=${encodeURIComponent(sessionId)}&rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`,
             { cache: "no-store" }
           );
           const json = await r.json();
@@ -121,7 +129,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         }
 
         // refresh: check KV podľa rid
-        const r = await fetch(`/api/pay/status?rid=${encodeURIComponent(effectiveRid)}`, { cache: "no-store" });
+        const r = await fetch(`/api/pay/status?rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
         const json = await r.json();
         if (json?.paid) setPaid(true);
       } catch (e) {
@@ -129,6 +137,24 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       }
     })();
   }, [rid, slug]);
+
+  useEffect(() => {
+    if (autoComputeDone || result) return;
+    if (!rid || !birthDate) return;
+
+    const expectedRid = makeRid(slug, birthDate);
+    if (!expectedRid || expectedRid !== rid) return;
+
+    (async () => {
+      try {
+        await computeForBirthDate(birthDate, name);
+      } catch {
+        // keep silent; user can compute manually
+      } finally {
+        setAutoComputeDone(true);
+      }
+    })();
+  }, [autoComputeDone, birthDate, name, result, rid, slug]);
 
   const visible = useMemo(() => {
     if (!result?.categories?.length) return null;
@@ -148,33 +174,8 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
   async function onCompute() {
     setErr(null);
-
-    const bd = normalizeBirthDate(birthDate);
-    if (!bd) {
-      setErr("Zadaj dátum narodenia.");
-      return;
-    }
-
     try {
-      const r = await fetch("/api/compute", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          editionSlug: slug,
-          name: (name || "").trim() || "",
-          birthDate: bd,
-          locale,
-        }),
-      });
-
-      const json = await r.json();
-      if (!r.ok) throw new Error(json?.error || "COMPUTE_FAILED");
-
-      // API môže vracať { ok, result } alebo rovno result
-      const payload = (json?.result ?? json) as EngineResult;
-
-      setResult(payload);
-      localStorage.setItem(`coso:result:${slug}`, JSON.stringify(payload));
+      await computeForBirthDate(birthDate, name);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     }
@@ -185,11 +186,14 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     setPayBusy(true);
 
     try {
+      const effectiveRid = (rid || makeRid(slug, birthDate)).trim();
+      if (!effectiveRid) throw new Error("Najprv vyplň dátum narodenia a vyhodnoť výsledok.");
+
       const r = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          rid,
+          rid: effectiveRid,
           slug,
           returnTo: `/e/${slug}`,
         }),
@@ -258,7 +262,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
               className="input"
               placeholder="YYYY-MM-DD alebo dd.mm.rrrr"
               value={birthDate}
-              onChange={(e) => setBirthDate(formatBirthDateInput(e.target.value))}
+              onChange={(e) => setBirthDate(sanitizeBirthDateInput(e.target.value))}
             />
             <button className="btn" onClick={onCompute}>
               Vyhodnotiť
@@ -311,7 +315,11 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
                           {locked ? (
                             <div>Skryté. Sprístupní sa po platbe.</div>
                           ) : (
-                            <div>{it.text ?? ""}</div>
+                            <div>
+                              {(it.text ?? "").trim() && (it.text ?? "").trim() !== (it.title ?? "").trim()
+                                ? it.text
+                                : ""}
+                            </div>
                           )}
                         </div>
                       );
