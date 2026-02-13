@@ -1,6 +1,11 @@
 {
   "editions": [
     {
+      "slug": "test-rovnovaha-v1",
+      "title": "Test: Rovnováha (v1)",
+      "createdAt": "2026-02-13T13:24:03.918Z"
+    },
+    {
       "slug": "test-edicia-rovnovaha",
       "title": "Test rovnováha",
       "createdAt": "2026-02-13T12:49:21.050Z"
