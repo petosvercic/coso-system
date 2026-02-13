@@ -1,9 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type EngineItem = { id?: string; title?: string; value?: number; text?: string };
-type EngineCategory = { key?: string; title?: string; items?: EngineItem[] };
+type EngineCategory = {
+  key?: string;
+  title?: string;
+  items?: EngineItem[];
+  score?: number;
+  band?: "low" | "mid" | "high" | string;
+  percentile?: number;
+  insight?: string;
+  recommendation?: string;
+};
 type EngineResult = { categories?: EngineCategory[] };
 
 type Edition = {
@@ -13,6 +23,16 @@ type Edition = {
 };
 
 function sanitizeBirthDateInput(s: string) {
+  const raw = String(s || "").trim();
+  const digitsOnly = raw.replace(/\D/g, "").slice(0, 8);
+
+  if (/^\d*$/.test(raw)) {
+    if (digitsOnly.length <= 2) return digitsOnly;
+    if (digitsOnly.length <= 4) return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2)}`;
+    return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2, 4)}.${digitsOnly.slice(4)}`;
+  }
+
+  return raw.slice(0, 10);
   return String(s || "").trim().slice(0, 10);
 }
 
@@ -37,9 +57,19 @@ function makeRid(slug: string, rawBirthDate: string) {
   return `${slug}:${birthDate}`;
 }
 
+function bandLabel(band?: string) {
+  if (band === "low") return "Nízke";
+  if (band === "mid") return "Stredné";
+  if (band === "high") return "Vysoké";
+  return band || "";
+}
+
 export default function EditionClient({ slug, edition }: { slug: string; edition: Edition }) {
   const c = edition?.content ?? {};
   const locale = edition?.engine?.locale ?? "sk";
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -51,6 +81,21 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   const [payBusy, setPayBusy] = useState(false);
   const [autoComputeDone, setAutoComputeDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  function persistInputsToUrl(nextBirthDateRaw: string, nextNameRaw: string) {
+    const bd = normalizeBirthDate(nextBirthDateRaw);
+    const nm = (nextNameRaw || "").trim();
+
+    const sp = new URLSearchParams(searchParams?.toString() ?? "");
+    if (bd) sp.set("birthDate", bd);
+    else sp.delete("birthDate");
+    if (nm) sp.set("name", nm);
+    else sp.delete("name");
+    sp.set("slug", slug);
+
+    const q = sp.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }
 
   async function computeForBirthDate(bdRaw: string, displayName: string) {
     const bd = normalizeBirthDate(bdRaw);
@@ -81,7 +126,12 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
+      const birthDateFromUrl = (url.searchParams.get("birthDate") || "").trim();
+      const nameFromUrl = (url.searchParams.get("name") || "").trim();
       const ridFromUrl = (url.searchParams.get("rid") || "").trim();
+
+      if (birthDateFromUrl) setBirthDate(birthDateFromUrl);
+      if (nameFromUrl) setName(nameFromUrl);
 
       if (ridFromUrl) {
         setRid(ridFromUrl);
@@ -139,6 +189,8 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   }, [rid, slug]);
 
   useEffect(() => {
+    if (autoComputeDone || result || !birthDate) return;
+   
     if (autoComputeDone || result) return;
     if (!rid || !birthDate) return;
 
@@ -154,6 +206,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         setAutoComputeDone(true);
       }
     })();
+  }, [autoComputeDone, birthDate, name, paid, result, rid, slug]);
   }, [autoComputeDone, birthDate, name, result, rid, slug]);
 
   const visible = useMemo(() => {
@@ -175,6 +228,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   async function onCompute() {
     setErr(null);
     try {
+      persistInputsToUrl(birthDate, name);
       await computeForBirthDate(birthDate, name);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
@@ -186,6 +240,14 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     setPayBusy(true);
 
     try {
+      persistInputsToUrl(birthDate, name);
+      const effectiveRid = (rid || makeRid(slug, birthDate)).trim();
+      if (!effectiveRid) throw new Error("Najprv vyplň dátum narodenia a vyhodnoť výsledok.");
+      const normalizedBirthDate = normalizeBirthDate(birthDate);
+      const trimmedName = (name || "").trim();
+      const returnSp = new URLSearchParams({ slug });
+      if (normalizedBirthDate) returnSp.set("birthDate", normalizedBirthDate);
+      if (trimmedName) returnSp.set("name", trimmedName);
       const effectiveRid = (rid || makeRid(slug, birthDate)).trim();
       if (!effectiveRid) throw new Error("Najprv vyplň dátum narodenia a vyhodnoť výsledok.");
 
@@ -195,7 +257,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         body: JSON.stringify({
           rid: effectiveRid,
           slug,
-          returnTo: `/e/${slug}`,
+          returnTo: `/e/${slug}?${returnSp.toString()}`,
         }),
       });
 
@@ -228,6 +290,10 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         .sectionTitle { font-size: 18px; margin: 0 0 10px; }
         .cat { padding: 14px; border: 1px solid #eee; border-radius: 14px; background: #fafafa; }
         .cat h2 { margin: 0 0 10px; font-size: 16px; }
+        .catHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .catMeta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .pill { display: inline-block; border: 1px solid #ddd; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #fff; }
+        .catText { font-size: 13px; opacity: .85; margin: 0 0 8px; }
         .item { padding: 12px; border-radius: 12px; background: #fff; border: 1px solid #eee; }
         .item h3 { margin: 0 0 6px; font-size: 15px; }
         .meta { font-size: 12px; opacity: .6; margin-bottom: 8px; }
@@ -302,7 +368,16 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
             <div className="grid">
               {visible.categories!.map((cat, ci) => (
                 <div className="cat" key={cat.key ?? ci}>
-                  <h2>{cat.title ?? `Kategória ${ci + 1}`}</h2>
+                  <div className="catHead">
+                    <h2>{cat.title ?? `Kategória ${ci + 1}`}</h2>
+                    <div className="catMeta">
+                      {typeof cat.score === "number" ? <span className="pill">Skóre: {cat.score}</span> : null}
+                      {bandLabel(cat.band) ? <span className="pill">{bandLabel(cat.band)}</span> : null}
+                      {typeof cat.percentile === "number" ? <span className="pill">Percentil: {cat.percentile}</span> : null}
+                    </div>
+                  </div>
+                  {(cat.insight ?? "").trim() ? <p className="catText">{cat.insight}</p> : null}
+                  {(cat.recommendation ?? "").trim() && paid ? <p className="catText">{cat.recommendation}</p> : null}
                   <div className="grid">
                     {(cat.items ?? []).map((it, idx) => {
                       const locked = !paid && idx !== 0;
