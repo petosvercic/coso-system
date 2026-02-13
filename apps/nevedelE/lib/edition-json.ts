@@ -5,6 +5,70 @@ export type EditionPayload = {
   [k: string]: any;
 };
 
+// ---- task V2 normalization (builder-friendly) ----
+function toAsciiSafe(s: string) {
+  // keep original text as-is; but ensure it's a string and trim
+  return String(s ?? "").trim();
+}
+
+function mkId(prefix: string, n: number) {
+  return `${prefix}-${String(n).padStart(3,"0")}`;
+}
+
+function mkMetricKey(catIndex: number, taskIndex: number) {
+  return `c${catIndex+1}_t${taskIndex+1}`;
+}
+
+function ensure3Variants(title: string, variants: any) {
+  const base = toAsciiSafe(title) || "Task";
+  let v = Array.isArray(variants) ? variants.map(toAsciiSafe).filter(Boolean) : [];
+  if(v.length === 0){
+    v = [
+      base,
+      base + " (quick)",
+      base + " (deep)"
+    ];
+  }
+  // pad / trim to exactly 3
+  while(v.length < 3) v.push(v[v.length-1]);
+  if(v.length > 3) v = v.slice(0,3);
+  return v;
+}
+
+function ensureTaskV2(catIndex: number, taskIndex: number, t: any) {
+  // Accept:
+  // - string => convert
+  // - object => fill missing fields, fix variants length
+  if(typeof t === "string"){
+    const title = toAsciiSafe(t);
+    return {
+      id: mkId(`c${catIndex+1}t${taskIndex+1}`, 1),
+      title,
+      metricKey: mkMetricKey(catIndex, taskIndex),
+      variants: ensure3Variants(title, null),
+    };
+  }
+  const title = toAsciiSafe(t?.title ?? t?.name ?? t?.text ?? "");
+  return {
+    id: toAsciiSafe(t?.id) || mkId(`c${catIndex+1}t${taskIndex+1}`, 1),
+    title: title || "Task",
+    metricKey: toAsciiSafe(t?.metricKey) || mkMetricKey(catIndex, taskIndex),
+    variants: ensure3Variants(title || "Task", t?.variants),
+  };
+}
+
+function normalizeTasksToV2(edition: any) {
+  if(!edition?.tasks?.categories || !Array.isArray(edition.tasks.categories)) return edition;
+  edition.tasks.categories = edition.tasks.categories.map((c: any, ci: number) => {
+    const title = toAsciiSafe(c?.title ?? `Category ${ci+1}`) || `Category ${ci+1}`;
+    const tasksRaw = Array.isArray(c?.tasks) ? c.tasks : [];
+    const tasks = tasksRaw.map((t: any, ti: number) => ensureTaskV2(ci, ti, t));
+    return { ...c, title, tasks };
+  });
+  return edition;
+}
+// ---- end task V2 normalization ----
+
 function sanitizeRaw(raw: string) {
   return String(raw ?? "")
     .replace(/^\uFEFF/, "")
@@ -54,14 +118,14 @@ function normalizeGroupsFixture(out: any) {
 function fallbackContent(title: string) {
   return {
     heroTitle: title,
-    heroSubtitle: "PersonalizovanÄ‚Ëť prehĂ„Äľad",
-    intro: { title: "Ä‚Ĺˇvod", text: "VyplÄąÂ krÄ‚Ë‡tky formulÄ‚Ë‡r a zÄ‚Â­skaj vÄ‚Ëťsledok." },
-    form: { title: "Vyhodnotenie", nameLabel: "Meno", birthDateLabel: "DÄ‚Ë‡tum narodenia", submitLabel: "VyhodnotiÄąÄ„" },
-    result: { teaserTitle: "NÄ‚Ë‡hĂ„Äľad", teaserNote: "ZobrazenÄ‚Ëť je len teaser.", unlockHint: "Odomkni celÄ‚Ëť vÄ‚Ëťsledok." },
+    heroSubtitle: "PersonalizovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ prehĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ„Äľad",
+    intro: { title: "Ä‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă‹â€ˇvod", text: "VyplÄ‚â€žĂ„â€¦Ä‚â€šĂ‚Â krÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡tky formulÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡r a zÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­skaj vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„sledok." },
+    form: { title: "Vyhodnotenie", nameLabel: "Meno", birthDateLabel: "DÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡tum narodenia", submitLabel: "VyhodnotiÄ‚â€žĂ„â€¦Ä‚â€žĂ˘â‚¬Ĺľ" },
+    result: { teaserTitle: "NÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡hĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ„Äľad", teaserNote: "ZobrazenÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ je len teaser.", unlockHint: "Odomkni celÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„sledok." },
     paywall: {
-      headline: "Odomkni celÄ‚Ëť vÄ‚Ëťsledok",
-      bullets: ["VÄąË‡etky kategÄ‚Ĺ‚rie", "PlnÄ‚Ëť text", "PersonalizovanÄ‚Â© vÄ‚Ëťstupy"],
-      cta: "PokraĂ„Ĺ¤ovaÄąÄ„ na platbu",
+      headline: "Odomkni celÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„sledok",
+      bullets: ["VÄ‚â€žĂ„â€¦Ä‚â€ąĂ˘â‚¬Ë‡etky kategÄ‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă˘â‚¬Ĺˇrie", "PlnÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ text", "PersonalizovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â© vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„stupy"],
+      cta: "PokraĂ„â€šĂ˘â‚¬ĹľĂ„Ä…Ă‚Â¤ovaÄ‚â€žĂ„â€¦Ä‚â€žĂ˘â‚¬Ĺľ na platbu",
     },
   };
 }
@@ -76,12 +140,12 @@ function normalizeFixture(obj: any) {
         const tasks = Array.isArray(cat?.tasks) ? cat.tasks : [];
         return {
           key: String(cat?.id || cat?.key || `cat-${cidx + 1}`),
-          title: String(cat?.title || `KategÄ‚Ĺ‚ria ${cidx + 1}`),
+          title: String(cat?.title || `KategÄ‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă˘â‚¬Ĺˇria ${cidx + 1}`),
           pool: tasks.map((t: any, tidx: number) => {
             const v = t?.variants || {};
             return {
               id: String(t?.id || `t${cidx + 1}-${tidx + 1}`),
-              title: String(t?.title || `Ä‚Ĺˇloha ${tidx + 1}`),
+              title: String(t?.title || `Ä‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă‹â€ˇloha ${tidx + 1}`),
               metricKey: String(t?.metricKey || t?.id || `m_${cidx + 1}_${tidx + 1}`),
               variants: [
                 { when: { lte: 33 }, text: String(v?.lte || "") },
@@ -97,11 +161,11 @@ function normalizeFixture(obj: any) {
 
   if (!out.title || typeof out.title !== "string" || !out.title.trim()) {
     if (Array.isArray(out.groups) && out.groups.length > 0) {
-      out.title = String(out.groups[0] || "").trim() || "GenerovanÄ‚Ë‡ edÄ‚Â­cia";
+      out.title = String(out.groups[0] || "").trim() || "GenerovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡ edÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
     } else if (Array.isArray(out.categories) && out.categories.length > 0) {
-      out.title = String(out.categories[0]?.title || "").trim() || "GenerovanÄ‚Ë‡ edÄ‚Â­cia";
+      out.title = String(out.categories[0]?.title || "").trim() || "GenerovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡ edÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
     } else {
-      out.title = "GenerovanÄ‚Ë‡ edÄ‚Â­cia";
+      out.title = "GenerovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡ edÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
     }
   }
 
@@ -110,7 +174,7 @@ function normalizeFixture(obj: any) {
   }
 
   if (!out.content || typeof out.content !== "object" || Array.isArray(out.content)) {
-    out.content = fallbackContent(String(out.title || out.slug || "EdÄ‚Â­cia"));
+    out.content = fallbackContent(String(out.title || out.slug || "EdÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia"));
   }
 
   if (!out.engine || typeof out.engine !== "object") {
@@ -124,7 +188,7 @@ function normalizeFixture(obj: any) {
       pickPerCategory: typeof out.tasks.pickPerCategory === "number" ? out.tasks.pickPerCategory : 25,
       categories: out.tasks.categories.map((cat: any, cidx: number) => {
         const key = String(cat?.key || cat?.id || `cat-${cidx + 1}`);
-        const title = String(cat?.title || `KategÄ‚Ĺ‚ria ${cidx + 1}`);
+        const title = String(cat?.title || `KategÄ‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă˘â‚¬Ĺˇria ${cidx + 1}`);
 
         // accept both `pool` and legacy `tasks`
         const rawPool = Array.isArray(cat?.pool) ? cat.pool : Array.isArray(cat?.tasks) ? cat.tasks : [];
@@ -173,8 +237,12 @@ export function validateEditionJson(raw: string, existingSlugs: string[] = []) {
 
   try {
     obj = JSON.parse(normalized);
-  } catch (e: any) {
-    return {
+  
+    // ensure task schema V2 (id/title/metricKey/variants[3])
+    normalizeTasksToV2(obj);
+} catch (e: any) {
+
+return {
       ok: false as const,
       error: "INVALID_JSON",
       details: String(e?.message ?? e),
