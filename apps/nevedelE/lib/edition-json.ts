@@ -118,14 +118,14 @@ function normalizeGroupsFixture(out: any) {
 function fallbackContent(title: string) {
   return {
     heroTitle: title,
-    heroSubtitle: "PersonalizovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ prehĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ„Äľad",
-    intro: { title: "Ä‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă‹â€ˇvod", text: "VyplÄ‚â€žĂ„â€¦Ä‚â€šĂ‚Â krÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡tky formulÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡r a zÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­skaj vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„sledok." },
-    form: { title: "Vyhodnotenie", nameLabel: "Meno", birthDateLabel: "DÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡tum narodenia", submitLabel: "VyhodnotiÄ‚â€žĂ„â€¦Ä‚â€žĂ˘â‚¬Ĺľ" },
-    result: { teaserTitle: "NÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡hĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ„Äľad", teaserNote: "ZobrazenÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ je len teaser.", unlockHint: "Odomkni celÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„sledok." },
+    heroSubtitle: "PersonalizovanĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€ž prehÄ‚â€žĂ˘â‚¬ĹˇÄ‚ËĂ˘â€šÂ¬ÄąÄľĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ„Äľad",
+    intro: { title: "Ă„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ä‚â€žĂ„â€¦Ä‚â€ąĂ˘â‚¬Ë‡vod", text: "VyplĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ˘â‚¬Â¦Ă„â€šĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â krĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇtky formulĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇr a zĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­skaj vĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€žsledok." },
+    form: { title: "Vyhodnotenie", nameLabel: "Meno", birthDateLabel: "DĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇtum narodenia", submitLabel: "VyhodnotiĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ˘â‚¬Â¦Ă„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąÄľ" },
+    result: { teaserTitle: "NĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇhÄ‚â€žĂ˘â‚¬ĹˇÄ‚ËĂ˘â€šÂ¬ÄąÄľĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ„Äľad", teaserNote: "ZobrazenĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€ž je len teaser.", unlockHint: "Odomkni celĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€ž vĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€žsledok." },
     paywall: {
-      headline: "Odomkni celÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„sledok",
-      bullets: ["VÄ‚â€žĂ„â€¦Ä‚â€ąĂ˘â‚¬Ë‡etky kategÄ‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă˘â‚¬Ĺˇrie", "PlnÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ text", "PersonalizovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â© vÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„stupy"],
-      cta: "PokraĂ„â€šĂ˘â‚¬ĹľĂ„Ä…Ă‚Â¤ovaÄ‚â€žĂ„â€¦Ä‚â€žĂ˘â‚¬Ĺľ na platbu",
+      headline: "Odomkni celĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€ž vĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€žsledok",
+      bullets: ["VĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ˘â‚¬Â¦Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇetky kategĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ä‚â€žĂ„â€¦Ä‚ËĂ˘â€šÂ¬ÄąË‡rie", "PlnĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€ž text", "PersonalizovanĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â© vĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ă„Ä…Ă„â€žstupy"],
+      cta: "PokraÄ‚â€žĂ˘â‚¬ĹˇÄ‚ËĂ˘â€šÂ¬ÄąÄľÄ‚â€žĂ„â€¦Ä‚â€šĂ‚Â¤ovaĂ„â€šĂ˘â‚¬ĹľÄ‚â€žĂ˘â‚¬Â¦Ă„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąÄľ na platbu",
     },
   };
 }
@@ -140,12 +140,12 @@ function normalizeFixture(obj: any) {
         const tasks = Array.isArray(cat?.tasks) ? cat.tasks : [];
         return {
           key: String(cat?.id || cat?.key || `cat-${cidx + 1}`),
-          title: String(cat?.title || `KategÄ‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă˘â‚¬Ĺˇria ${cidx + 1}`),
+          title: String(cat?.title || `KategĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ä‚â€žĂ„â€¦Ä‚ËĂ˘â€šÂ¬ÄąË‡ria ${cidx + 1}`),
           pool: tasks.map((t: any, tidx: number) => {
             const v = t?.variants || {};
             return {
               id: String(t?.id || `t${cidx + 1}-${tidx + 1}`),
-              title: String(t?.title || `Ä‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă‹â€ˇloha ${tidx + 1}`),
+              title: String(t?.title || `Ă„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ä‚â€žĂ„â€¦Ä‚â€ąĂ˘â‚¬Ë‡loha ${tidx + 1}`),
               metricKey: String(t?.metricKey || t?.id || `m_${cidx + 1}_${tidx + 1}`),
               variants: [
                 { when: { lte: 33 }, text: String(v?.lte || "") },
@@ -161,11 +161,11 @@ function normalizeFixture(obj: any) {
 
   if (!out.title || typeof out.title !== "string" || !out.title.trim()) {
     if (Array.isArray(out.groups) && out.groups.length > 0) {
-      out.title = String(out.groups[0] || "").trim() || "GenerovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡ edÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
+      out.title = String(out.groups[0] || "").trim() || "GenerovanĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇ edĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
     } else if (Array.isArray(out.categories) && out.categories.length > 0) {
-      out.title = String(out.categories[0]?.title || "").trim() || "GenerovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡ edÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
+      out.title = String(out.categories[0]?.title || "").trim() || "GenerovanĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇ edĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
     } else {
-      out.title = "GenerovanÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ˘â‚¬Ë‡ edÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
+      out.title = "GenerovanĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬Ä…Ä‚ËĂ˘â€šÂ¬Ă‹â€ˇ edĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia";
     }
   }
 
@@ -174,7 +174,7 @@ function normalizeFixture(obj: any) {
   }
 
   if (!out.content || typeof out.content !== "object" || Array.isArray(out.content)) {
-    out.content = fallbackContent(String(out.title || out.slug || "EdÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia"));
+    out.content = fallbackContent(String(out.title || out.slug || "EdĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â­cia"));
   }
 
   if (!out.engine || typeof out.engine !== "object") {
@@ -188,7 +188,7 @@ function normalizeFixture(obj: any) {
       pickPerCategory: typeof out.tasks.pickPerCategory === "number" ? out.tasks.pickPerCategory : 25,
       categories: out.tasks.categories.map((cat: any, cidx: number) => {
         const key = String(cat?.key || cat?.id || `cat-${cidx + 1}`);
-        const title = String(cat?.title || `KategÄ‚â€žĂ˘â‚¬ĹˇĂ„Ä…Ă˘â‚¬Ĺˇria ${cidx + 1}`);
+        const title = String(cat?.title || `KategĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ä‚â€žĂ„â€¦Ä‚ËĂ˘â€šÂ¬ÄąË‡ria ${cidx + 1}`);
 
         // accept both `pool` and legacy `tasks`
         const rawPool = Array.isArray(cat?.pool) ? cat.pool : Array.isArray(cat?.tasks) ? cat.tasks : [];
@@ -212,6 +212,45 @@ function normalizeFixture(obj: any) {
 }
 
 
+// ---- tolerant JSON extractor (LLM-proof) ----
+function extractFirstJsonObject(input: string): string | null {
+  const s = String(input ?? "");
+  const start = s.indexOf("{");
+  if (start < 0) return null;
+
+  let inStr = false;
+  let esc = false;
+  let depth = 0;
+
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+
+    if (inStr) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\") { esc = true; continue; }
+      if (ch === '"') { inStr = false; continue; }
+      continue;
+    } else {
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === "{") depth++;
+      if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const candidate = s.slice(start, i + 1).trim();
+          try {
+            JSON.parse(candidate);
+            return candidate;
+          } catch {
+            // if this candidate is not parseable, keep scanning (rare but possible)
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+// ---- end tolerant JSON extractor ----
+
 export function normalizeEditionJsonRaw(raw: string) {
   const base = sanitizeRaw(raw);
   const noFence = unwrapCodeFence(base);
@@ -226,7 +265,9 @@ export function normalizeEditionJsonForBuilder(raw: string) {
     const shaped = normalizeFixture(parsed);
     return JSON.stringify(shaped, null, 2);
   } catch {
-    return normalized;
+  // If LLM returned JSON plus junk/trailing braces/text, extract the first valid JSON object
+  const extracted = extractFirstJsonObject(normalized);
+    return (extracted ?? normalized);
   }
 }
 
