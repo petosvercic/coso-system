@@ -1,6 +1,11 @@
 {
   "editions": [
     {
+      "slug": "test-kanon-rovnovaha-v1",
+      "title": "Test: Kanón rovnováhy (v1)",
+      "createdAt": "2026-02-13T14:59:15.727Z"
+    },
+    {
       "slug": "test-rovnovaha-v1",
       "title": "Test: Rovnováha (v1)",
       "createdAt": "2026-02-13T13:24:03.918Z"
