@@ -87,14 +87,28 @@ export async function POST(req: Request) {
 
       const outCats = cats.map((cat: any, ci: number) => {
         const pool = Array.isArray(cat?.pool) ? cat.pool : [];
-        if (pool.length !== 50) throw new Error(`CATEGORY_${ci + 1}_POOL_NOT_50`);
+        const pickPerCategoryRaw = Number((edition as any)?.tasks?.pickPerCategory ?? 5);
+        const pickPerCategory = Number.isFinite(pickPerCategoryRaw) ? Math.max(1, Math.min(25, Math.floor(pickPerCategoryRaw))) : 5;
+        if (pool.length < 1) throw new Error(`CATEGORY_${ci + 1}_POOL_EMPTY`);
 
         const idx = pool.map((_: any, i: number) => i);
         for (let i = idx.length - 1; i > 0; i--) {
           const j = Math.floor(rng() * (i + 1));
           [idx[i], idx[j]] = [idx[j], idx[i]];
         }
-        const chosen = idx.slice(0, 25).map((i) => pool[i]);
+
+        const chosen = (() => {
+          if (pool.length >= pickPerCategory) {
+            return idx.slice(0, pickPerCategory).map((i) => pool[i]);
+          }
+          // if pool is smaller than required, sample with replacement for consistent UI
+          const out: any[] = [];
+          for (let k = 0; k < pickPerCategory; k++) {
+            const i = Math.floor(rng() * pool.length);
+            out.push(pool[i]);
+          }
+          return out;
+        })();
 
         const items = chosen.map((t: any) => {
           const tid = String(t?.id ?? "");

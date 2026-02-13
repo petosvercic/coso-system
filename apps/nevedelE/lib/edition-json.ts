@@ -181,25 +181,82 @@ function normalizeFixture(obj: any) {
     out.engine = { subject: String(out.slug || "edition").replace(/-/g, "_"), locale: "sk" };
   }
 
-  // ---- tasks schema hardening (accept aliases, force pool shape) ----
+  // ---- tasks schema hardening (accept aliases + multiple task shapes) ----
   if (out.tasks && Array.isArray(out.tasks.categories)) {
+    const clampInt = (n: any, lo: number, hi: number, fallback: number) => {
+      const x = Number(n);
+      if (!Number.isFinite(x)) return fallback;
+      return Math.max(lo, Math.min(hi, Math.floor(x)));
+    };
+
+    const toText = (x: any) => String(x ?? "").trim();
+
+    const pad3 = (arr: string[]) => {
+      const a = arr.filter(Boolean);
+      if (a.length === 0) return ["", "", ""]; 
+      while (a.length < 3) a.push(a[a.length - 1]);
+      return a.slice(0, 3);
+    };
+
+    const normalizeVariantTriplet = (variantsAny: any, title: string): Array<{ when: any; text: string }> => {
+      // Allowed input shapes:
+      // 1) [{when:{lte|between|gte}, text:"..."}, ...] (already final)
+      // 2) ["text1","text2","text3"] (simple)
+      // 3) { lte:"", between:"", gte:"" } (legacy object)
+      if (Array.isArray(variantsAny) && variantsAny.every((v) => typeof v?.when === "object" && typeof v?.text === "string")) {
+        const vv = variantsAny.slice(0, 3);
+        if (vv.length === 3) return vv;
+      }
+
+      let texts: string[] = [];
+      if (Array.isArray(variantsAny)) {
+        texts = variantsAny.map(toText);
+      } else if (variantsAny && typeof variantsAny === "object") {
+        texts = [toText(variantsAny.lte), toText(variantsAny.between), toText(variantsAny.gte)];
+      }
+
+      const base = toText(title) || "Task";
+      const [a, b, c] = pad3(texts.length ? texts : [base, base, base]);
+
+      return [
+        { when: { lte: 33 }, text: a || base },
+        { when: { between: [34, 66] }, text: b || a || base },
+        { when: { gte: 67 }, text: c || b || a || base },
+      ];
+    };
+
     out.tasks = {
       ...out.tasks,
-      pickPerCategory: typeof out.tasks.pickPerCategory === "number" ? out.tasks.pickPerCategory : 25,
+      // allow any 1..25 (UI stays sane); compute will clamp too
+      pickPerCategory: clampInt(out.tasks.pickPerCategory, 1, 25, 5),
       categories: out.tasks.categories.map((cat: any, cidx: number) => {
         const key = String(cat?.key || cat?.id || `cat-${cidx + 1}`);
-        const title = String(cat?.title || `KategĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬ÄąË‡Ă„â€šĂ‹ÂÄ‚ËĂ˘â‚¬ĹˇĂ‚Â¬Ă„Ä…Ă„ÄľÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ‚ÂĂ„â€šĂ‹ÂÄ‚ËĂ˘â€šÂ¬ÄąË‡Ä‚â€šĂ‚Â¬Ä‚â€žĂ„â€¦Ä‚â€ąĂ˘â‚¬Ë‡Ä‚â€žĂ˘â‚¬ĹˇÄ‚ËĂ˘â€šÂ¬ÄąÄľĂ„â€šĂ˘â‚¬ĹľÄ‚ËĂ˘â€šÂ¬Ă‚Â¦Ä‚â€žĂ˘â‚¬ĹˇÄ‚â€ąĂ‚ÂĂ„â€šĂ‹ÂÄ‚ËĂ˘â€šÂ¬ÄąË‡Ä‚â€šĂ‚Â¬Ä‚â€žĂ„â€¦Ä‚â€ąĂ˘â‚¬Ë‡ria ${cidx + 1}`);
+        const title = String(cat?.title || `Kategória ${cidx + 1}`);
 
         // accept both `pool` and legacy `tasks`
         const rawPool = Array.isArray(cat?.pool) ? cat.pool : Array.isArray(cat?.tasks) ? cat.tasks : [];
 
         const pool = rawPool.map((t: any, tidx: number) => {
-          const variants = Array.isArray(t?.variants) ? t.variants : [];
+          // accept task as string
+          if (typeof t === "string") {
+            const txt = toText(t);
+            return {
+              id: `t${cidx + 1}-${tidx + 1}`,
+              title: txt || `Task ${tidx + 1}`,
+              metricKey: `m_${cidx + 1}_${tidx + 1}`,
+              variants: normalizeVariantTriplet([txt], txt || `Task ${tidx + 1}`),
+            };
+          }
+
+          // accept object (or even variants-only array)
+          const taskTitle = String(t?.title ?? t?.name ?? t?.text ?? `Task ${tidx + 1}`);
+          const variantsIn = (t && typeof t === "object" && "variants" in t) ? (t as any).variants : t;
+
           return {
             id: String(t?.id || `t${cidx + 1}-${tidx + 1}`),
-            title: String(t?.title || `Task ${tidx + 1}`),
+            title: String(taskTitle),
             metricKey: String(t?.metricKey || `m_${cidx + 1}_${tidx + 1}`),
-            variants,
+            variants: normalizeVariantTriplet(variantsIn, taskTitle),
           };
         });
 
@@ -278,10 +335,9 @@ export function validateEditionJson(raw: string, existingSlugs: string[] = []) {
 
   try {
     obj = JSON.parse(normalized);
-  const pickPerCategory = Number(obj?.tasks?.pickPerCategory ?? 25);
-// ensure task schema V2 (id/title/metricKey/variants[3])
+    // tolerate multiple task input shapes (string / simple variants / full V2)
     normalizeTasksToV2(obj);
-} catch (e: any) {
+  } catch (e: any) {
 
 return {
       ok: false as const,
@@ -326,8 +382,10 @@ return {
       return { ok: false as const, error: "TASKS_NOT_OBJECT", debug: { foundRootKeys } };
     }
 
-    if (tasks.pickPerCategory !== 25) {
-      return { ok: false as const, error: "TASKS_PICK_NOT_25", details: tasks.pickPerCategory, debug: { foundRootKeys } };
+    // allow any sane number; compute/UI will clamp as needed
+    const pick = Number((tasks as any).pickPerCategory ?? 5);
+    if (!Number.isFinite(pick) || pick < 1 || pick > 25) {
+      return { ok: false as const, error: "TASKS_PICK_OUT_OF_RANGE", details: (tasks as any).pickPerCategory, debug: { foundRootKeys } };
     }
 
     if (!Array.isArray(tasks.categories) || tasks.categories.length !== 5) {
@@ -340,17 +398,17 @@ return {
       if (!Array.isArray(pool)) {
         return { ok: false as const, error: "CATEGORY_POOL_MISSING", details: `cat#${ci + 1}`, debug: { foundRootKeys } };
       }
-      if (pool.length < 25) {
-        return { ok: false as const, error: "CATEGORY_POOL_TOO_SMALL", details: `cat#${ci + 1} len=${pool.length} (min 25)`, debug: { foundRootKeys } };
+      if (pool.length < 1) {
+        return { ok: false as const, error: "CATEGORY_POOL_TOO_SMALL", details: `cat#${ci + 1} len=${pool.length} (min 1)`, debug: { foundRootKeys } };
       }
 
       for (let ti = 0; ti < pool.length; ti++) {
-        const t = pool[ti];
-        if (typeof t?.id !== "string" || !t.id.trim()) return { ok: false as const, error: "TASK_ID_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
-        if (typeof t?.title !== "string" || !t.title.trim()) return { ok: false as const, error: "TASK_TITLE_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
-        if (typeof t?.metricKey !== "string" || !t.metricKey.trim()) return { ok: false as const, error: "TASK_METRICKEY_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
+        const tsk = pool[ti];
+        if (typeof tsk?.id !== "string" || !tsk.id.trim()) return { ok: false as const, error: "TASK_ID_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
+        if (typeof tsk?.title !== "string" || !tsk.title.trim()) return { ok: false as const, error: "TASK_TITLE_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
+        if (typeof tsk?.metricKey !== "string" || !tsk.metricKey.trim()) return { ok: false as const, error: "TASK_METRICKEY_MISSING", details: `cat#${ci + 1} task#${ti + 1}` };
 
-        const variants = Array.isArray(t?.variants) ? t.variants : null;
+        const variants = Array.isArray(tsk?.variants) ? tsk.variants : null;
         if (!variants || variants.length !== 3) return { ok: false as const, error: "TASK_VARIANTS_NOT_3", details: `cat#${ci + 1} task#${ti + 1}` };
 
         const hasLte = variants.some((v: any) => typeof v?.when?.lte === "number" && typeof v?.text === "string");
@@ -363,6 +421,7 @@ return {
       }
     }
   }
+
 
 
   return { ok: true as const, obj: { ...obj, slug, title: obj.title.trim() } as EditionPayload };
