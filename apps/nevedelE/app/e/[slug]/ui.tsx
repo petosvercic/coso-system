@@ -33,6 +33,7 @@ function sanitizeBirthDateInput(s: string) {
   }
 
   return raw.slice(0, 10);
+  return String(s || "").trim().slice(0, 10);
 }
 
 function normalizeBirthDate(s: string) {
@@ -189,7 +190,12 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
   useEffect(() => {
     if (autoComputeDone || result || !birthDate) return;
-    if (!rid && !paid) return;
+   
+    if (autoComputeDone || result) return;
+    if (!rid || !birthDate) return;
+
+    const expectedRid = makeRid(slug, birthDate);
+    if (!expectedRid || expectedRid !== rid) return;
 
     (async () => {
       try {
@@ -201,6 +207,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       }
     })();
   }, [autoComputeDone, birthDate, name, paid, result, rid, slug]);
+  }, [autoComputeDone, birthDate, name, result, rid, slug]);
 
   const visible = useMemo(() => {
     if (!result?.categories?.length) return null;
@@ -241,6 +248,8 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       const returnSp = new URLSearchParams({ slug });
       if (normalizedBirthDate) returnSp.set("birthDate", normalizedBirthDate);
       if (trimmedName) returnSp.set("name", trimmedName);
+      const effectiveRid = (rid || makeRid(slug, birthDate)).trim();
+      if (!effectiveRid) throw new Error("Najprv vyplň dátum narodenia a vyhodnoť výsledok.");
 
       const r = await fetch("/api/stripe/checkout", {
         method: "POST",
