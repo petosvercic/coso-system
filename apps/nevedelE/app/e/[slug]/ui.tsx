@@ -26,16 +26,15 @@ function sanitizeBirthDateInput(s: string) {
   const raw = String(s || "").trim();
   const digitsOnly = raw.replace(/\D/g, "").slice(0, 8);
 
-  // Ak user píše len čísla, pomáhame bodkami: dd.mm.yyyy
   if (/^\d*$/.test(raw)) {
     if (digitsOnly.length <= 2) return digitsOnly;
     if (digitsOnly.length <= 4) return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2)}`;
     return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2, 4)}.${digitsOnly.slice(4)}`;
   }
 
-  // Inak len orež
   return raw.slice(0, 10);
 }
+
 
 function normalizeBirthDate(s: string) {
   const t = (s || "").trim();
