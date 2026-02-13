@@ -8,7 +8,7 @@ export type EditionPayload = {
 function sanitizeRaw(raw: string) {
   return String(raw ?? "")
     .replace(/^\uFEFF/, "")
-    .replace(/[\u200B\u200C\u200D\u2060]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim();
 }
 
@@ -28,7 +28,7 @@ function slugify(input: string) {
   const base = String(input || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   const clipped = base.slice(0, 64);
@@ -54,14 +54,14 @@ function normalizeGroupsFixture(out: any) {
 function fallbackContent(title: string) {
   return {
     heroTitle: title,
-    heroSubtitle: "Personalizovaný prehľad",
-    intro: { title: "Úvod", text: "Vyplň krátky formulár a získaj výsledok." },
-    form: { title: "Vyhodnotenie", nameLabel: "Meno", birthDateLabel: "Dátum narodenia", submitLabel: "Vyhodnotiť" },
-    result: { teaserTitle: "Náhľad", teaserNote: "Zobrazený je len teaser.", unlockHint: "Odomkni celý výsledok." },
+    heroSubtitle: "PersonalizovanÄ‚Ëť prehĂ„Äľad",
+    intro: { title: "Ä‚Ĺˇvod", text: "VyplÄąÂ krÄ‚Ë‡tky formulÄ‚Ë‡r a zÄ‚Â­skaj vÄ‚Ëťsledok." },
+    form: { title: "Vyhodnotenie", nameLabel: "Meno", birthDateLabel: "DÄ‚Ë‡tum narodenia", submitLabel: "VyhodnotiÄąÄ„" },
+    result: { teaserTitle: "NÄ‚Ë‡hĂ„Äľad", teaserNote: "ZobrazenÄ‚Ëť je len teaser.", unlockHint: "Odomkni celÄ‚Ëť vÄ‚Ëťsledok." },
     paywall: {
-      headline: "Odomkni celý výsledok",
-      bullets: ["Všetky kategórie", "Plný text", "Personalizované výstupy"],
-      cta: "Pokračovať na platbu",
+      headline: "Odomkni celÄ‚Ëť vÄ‚Ëťsledok",
+      bullets: ["VÄąË‡etky kategÄ‚Ĺ‚rie", "PlnÄ‚Ëť text", "PersonalizovanÄ‚Â© vÄ‚Ëťstupy"],
+      cta: "PokraĂ„Ĺ¤ovaÄąÄ„ na platbu",
     },
   };
 }
@@ -76,12 +76,12 @@ function normalizeFixture(obj: any) {
         const tasks = Array.isArray(cat?.tasks) ? cat.tasks : [];
         return {
           key: String(cat?.id || cat?.key || `cat-${cidx + 1}`),
-          title: String(cat?.title || `Kategória ${cidx + 1}`),
+          title: String(cat?.title || `KategÄ‚Ĺ‚ria ${cidx + 1}`),
           pool: tasks.map((t: any, tidx: number) => {
             const v = t?.variants || {};
             return {
               id: String(t?.id || `t${cidx + 1}-${tidx + 1}`),
-              title: String(t?.title || `Úloha ${tidx + 1}`),
+              title: String(t?.title || `Ä‚Ĺˇloha ${tidx + 1}`),
               metricKey: String(t?.metricKey || t?.id || `m_${cidx + 1}_${tidx + 1}`),
               variants: [
                 { when: { lte: 33 }, text: String(v?.lte || "") },
@@ -97,11 +97,11 @@ function normalizeFixture(obj: any) {
 
   if (!out.title || typeof out.title !== "string" || !out.title.trim()) {
     if (Array.isArray(out.groups) && out.groups.length > 0) {
-      out.title = String(out.groups[0] || "").trim() || "Generovaná edícia";
+      out.title = String(out.groups[0] || "").trim() || "GenerovanÄ‚Ë‡ edÄ‚Â­cia";
     } else if (Array.isArray(out.categories) && out.categories.length > 0) {
-      out.title = String(out.categories[0]?.title || "").trim() || "Generovaná edícia";
+      out.title = String(out.categories[0]?.title || "").trim() || "GenerovanÄ‚Ë‡ edÄ‚Â­cia";
     } else {
-      out.title = "Generovaná edícia";
+      out.title = "GenerovanÄ‚Ë‡ edÄ‚Â­cia";
     }
   }
 
@@ -110,7 +110,7 @@ function normalizeFixture(obj: any) {
   }
 
   if (!out.content || typeof out.content !== "object" || Array.isArray(out.content)) {
-    out.content = fallbackContent(String(out.title || out.slug || "Edícia"));
+    out.content = fallbackContent(String(out.title || out.slug || "EdÄ‚Â­cia"));
   }
 
   if (!out.engine || typeof out.engine !== "object") {
@@ -124,7 +124,7 @@ function normalizeFixture(obj: any) {
       pickPerCategory: typeof out.tasks.pickPerCategory === "number" ? out.tasks.pickPerCategory : 25,
       categories: out.tasks.categories.map((cat: any, cidx: number) => {
         const key = String(cat?.key || cat?.id || `cat-${cidx + 1}`);
-        const title = String(cat?.title || `Kategória ${cidx + 1}`);
+        const title = String(cat?.title || `KategÄ‚Ĺ‚ria ${cidx + 1}`);
 
         // accept both `pool` and legacy `tasks`
         const rawPool = Array.isArray(cat?.pool) ? cat.pool : Array.isArray(cat?.tasks) ? cat.tasks : [];
@@ -231,8 +231,8 @@ export function validateEditionJson(raw: string, existingSlugs: string[] = []) {
       if (!Array.isArray(pool)) {
         return { ok: false as const, error: "CATEGORY_POOL_MISSING", details: `cat#${ci + 1}`, debug: { foundRootKeys } };
       }
-      if (pool.length !== 50) {
-        return { ok: false as const, error: "CATEGORY_POOL_NOT_50", details: `cat#${ci + 1} len=${pool.length}`, debug: { foundRootKeys } };
+      if (pool.length < 25) {
+        return { ok: false as const, error: "CATEGORY_POOL_TOO_SMALL", details: `cat#${ci + 1} len=${pool.length} (min 25)`, debug: { foundRootKeys } };
       }
 
       for (let ti = 0; ti < pool.length; ti++) {
