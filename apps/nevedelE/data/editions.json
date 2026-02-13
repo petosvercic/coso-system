@@ -1,6 +1,11 @@
 {
   "editions": [
     {
+      "slug": "test-edicia-rovnovaha",
+      "title": "Test rovnováha",
+      "createdAt": "2026-02-13T12:49:21.050Z"
+    },
+    {
       "slug": "plna-test-edicia-001",
       "title": "Plná testovacia edícia 5×25 (funkčné odomykanie)",
       "createdAt": "2026-02-06T11:39:59.779Z"
