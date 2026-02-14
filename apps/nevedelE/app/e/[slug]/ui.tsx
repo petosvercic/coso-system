@@ -26,28 +26,33 @@ function sanitizeBirthDateInput(s: string) {
   const raw = String(s || "").trim();
   const digitsOnly = raw.replace(/\D/g, "").slice(0, 8);
 
+  // user-friendly typing: dd.mm.rrrr
   if (/^\d*$/.test(raw)) {
     if (digitsOnly.length <= 2) return digitsOnly;
     if (digitsOnly.length <= 4) return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2)}`;
     return `${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2, 4)}.${digitsOnly.slice(4)}`;
   }
 
+  // allow manual paste like YYYY-MM-DD
   return raw.slice(0, 10);
 }
-
 
 function normalizeBirthDate(s: string) {
   const t = (s || "").trim();
   if (!t) return "";
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
   if (/^\d{2}\.\d{2}\.\d{4}$/.test(t)) {
     const [dd, mm, yyyy] = t.split(".");
     return `${yyyy}-${mm}-${dd}`;
   }
+
   if (/^\d{8}$/.test(t)) {
     // ddMMyyyy
     return `${t.slice(4, 8)}-${t.slice(2, 4)}-${t.slice(0, 2)}`;
   }
+
   return t;
 }
 
@@ -67,6 +72,7 @@ function bandLabel(band?: string) {
 export default function EditionClient({ slug, edition }: { slug: string; edition: Edition }) {
   const c = edition?.content ?? {};
   const locale = edition?.engine?.locale ?? "sk";
+
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -85,6 +91,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
   function persistInputsToUrl(nextBirthDateRaw: string, nextNameRaw: string) {
     const bd = normalizeBirthDate(nextBirthDateRaw);
     const nm = (nextNameRaw || "").trim();
+    const nextRid = bd ? makeRid(slug, bd) : "";
 
     const sp = new URLSearchParams(searchParams?.toString() ?? "");
     if (bd) sp.set("birthDate", bd);
@@ -93,10 +100,15 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     if (nm) sp.set("name", nm);
     else sp.delete("name");
 
-    sp.set("slug", slug);
+    if (nextRid) sp.set("rid", nextRid);
+    else sp.delete("rid");
 
     const q = sp.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }
+
+  function storageKey(slugKey: string, bd: string) {
+    return `coso:result:${slugKey}:${bd}`;
   }
 
   async function computeForBirthDate(bdRaw: string, displayName: string) {
@@ -122,10 +134,13 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
 
     setResult(payload);
     setRid(nextRid);
-    localStorage.setItem(`coso:result:${slug}`, JSON.stringify(payload));
+
+    try {
+      localStorage.setItem(storageKey(slug, bd), JSON.stringify(payload));
+    } catch {}
   }
 
-  // Init z URL (birthDate, name, rid)
+  // Init from URL (canonical identity = slug + birthDate)
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
@@ -139,8 +154,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
       if (ridFromUrl) {
         setRid(ridFromUrl);
 
-        const parts = ridFromUrl.split(":");
-        const bdFromRid = parts.length >= 2 ? parts.slice(1).join(":") : "";
+        const [, bdFromRid] = ridFromUrl.split(":", 2);
         if (bdFromRid && /^\d{4}-\d{2}-\d{2}$/.test(bdFromRid)) {
           setBirthDate(bdFromRid);
         }
@@ -148,15 +162,18 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     } catch {}
   }, [slug]);
 
-  // Restore result (refresh nezmaže výsledok)
+  // Restore cached result for this slug+birthDate (so refresh doesn't wipe it)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(`coso:result:${slug}`);
+      const bd = normalizeBirthDate(birthDate);
+      if (!bd) return;
+
+      const raw = localStorage.getItem(storageKey(slug, bd));
       if (raw) setResult(JSON.parse(raw));
     } catch {}
-  }, [slug]);
+  }, [slug, birthDate]);
 
-  // Payment verify (návrat zo Stripe aj bežný refresh)
+  // Payment verify (return from Stripe + normal refresh)
   useEffect(() => {
     (async () => {
       try {
@@ -166,26 +183,25 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         const effectiveRid = (ridFromUrl || rid || "").trim();
         if (!effectiveRid) return;
 
-        // návrat zo Stripe
         if (sessionId) {
           const r = await fetch(
-            `/api/pay/status?session_id=${encodeURIComponent(sessionId)}&rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`,
+            `/api/pay/status?session_id=${encodeURIComponent(sessionId)}&rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(
+              slug
+            )}`,
             { cache: "no-store" }
           );
           const json = await r.json();
           if (json?.paid) setPaid(true);
 
-          // vyčisti session_id z URL
+          // clean session_id from URL
           url.searchParams.delete("session_id");
           window.history.replaceState({}, "", url.toString());
           return;
         }
 
-        // refresh: check KV podľa rid
-        const r = await fetch(
-          `/api/pay/status?rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`,
-          { cache: "no-store" }
-        );
+        const r = await fetch(`/api/pay/status?rid=${encodeURIComponent(effectiveRid)}&slug=${encodeURIComponent(slug)}`, {
+          cache: "no-store",
+        });
         const json = await r.json();
         if (json?.paid) setPaid(true);
       } catch (e) {
@@ -194,32 +210,39 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     })();
   }, [rid, slug]);
 
-  // Auto compute (keď máme birthDate a ešte sme nepočítali)
+  // Auto compute once when we have birthDate
   useEffect(() => {
-    if (autoComputeDone || result || !birthDate) return;
+    if (autoComputeDone || result) return;
+
+    const bd = normalizeBirthDate(birthDate);
+    if (!bd) return;
+
+    const expectedRid = makeRid(slug, bd);
+    if (rid && rid !== expectedRid) return;
 
     (async () => {
       try {
-        await computeForBirthDate(birthDate, name);
+        await computeForBirthDate(bd, name);
+        persistInputsToUrl(bd, name);
       } catch {
-        // silent; user can compute manually
+        // silent: user can compute manually
       } finally {
         setAutoComputeDone(true);
       }
     })();
-  }, [autoComputeDone, birthDate, name, result, slug]);
+    // intentionally not depending on persistInputsToUrl
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoComputeDone, birthDate, name, result, rid, slug]);
 
   const visible = useMemo(() => {
     if (!result?.categories?.length) return null;
     if (paid) return result;
 
-    // TEASER: 1 kategória, 1 item
-    const cats = result.categories.slice(0, 1).map((cat) => ({
+    // TEASER: show up to 2 categories, each with 1 item
+    const cats = result.categories.slice(0, 2).map((cat) => ({
       ...cat,
-      items: (cat.items ?? []).map((it, idx) => ({
-        ...it,
-        text: idx === 0 ? it.text : "",
-      })),
+      items: (cat.items ?? []).slice(0, 1).map((it) => ({ ...it })),
+      recommendation: undefined,
     }));
 
     return { categories: cats } as EngineResult;
@@ -242,16 +265,15 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
     try {
       persistInputsToUrl(birthDate, name);
 
-      const effectiveRid = (rid || makeRid(slug, birthDate)).trim();
+      const bd = normalizeBirthDate(birthDate);
+      const effectiveRid = (rid || makeRid(slug, bd)).trim();
       if (!effectiveRid) throw new Error("Najprv vyplň dátum narodenia a vyhodnoť výsledok.");
 
-      const normalizedBirthDate = normalizeBirthDate(birthDate);
       const trimmedName = (name || "").trim();
-
-      const returnSp = new URLSearchParams({ slug });
-      if (normalizedBirthDate) returnSp.set("birthDate", normalizedBirthDate);
-      if (trimmedName) returnSp.set("name", trimmedName);
+      const returnSp = new URLSearchParams();
       returnSp.set("rid", effectiveRid);
+      returnSp.set("birthDate", bd);
+      if (trimmedName) returnSp.set("name", trimmedName);
 
       const r = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -291,7 +313,7 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         .err { color: #b00020; font-weight: 600; }
         .sectionTitle { font-size: 18px; margin: 0 0 10px; }
         .cat { padding: 14px; border: 1px solid #eee; border-radius: 14px; background: #fafafa; }
-        .cat h2 { margin: 0 0 10px; font-size: 16px; }
+        .cat h2 { margin: 0; font-size: 16px; }
         .catHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
         .catMeta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .pill { display: inline-block; border: 1px solid #ddd; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #fff; }
@@ -299,7 +321,6 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         .item { padding: 12px; border-radius: 12px; background: #fff; border: 1px solid #eee; }
         .item h3 { margin: 0 0 6px; font-size: 15px; }
         .meta { font-size: 12px; opacity: .6; margin-bottom: 8px; }
-        .locked { opacity: .55; }
         .pay { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
         .badge { font-size: 12px; opacity: .55; }
       `}</style>
@@ -321,15 +342,10 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
         {!result ? (
           <div className="card">
             <div className="row">
+              <input className="input" placeholder="Meno (voliteľné)" value={name} onChange={(e) => setName(e.target.value)} />
               <input
                 className="input"
-                placeholder="Meno (voliteľné)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <input
-                className="input"
-                placeholder="YYYY-MM-DD alebo dd.mm.rrrr"
+                placeholder="dd.mm.rrrr alebo YYYY-MM-DD"
                 value={birthDate}
                 onChange={(e) => setBirthDate(sanitizeBirthDateInput(e.target.value))}
               />
@@ -352,14 +368,12 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
               <div>
                 <div className="sectionTitle">Výsledok</div>
                 {!paid ? (
-                  <div style={{ opacity: 0.75, fontSize: 13 }}>
-                    Zobrazený je len teaser. Zvyšok sa sprístupní po platbe.
-                  </div>
+                  <div style={{ opacity: 0.75, fontSize: 13 }}>Zobrazený je len teaser. Zvyšok sa sprístupní po platbe.</div>
                 ) : null}
               </div>
 
               {!paid ? (
-                <button className="btn secondary" disabled={payBusy || !(rid || makeRid(slug, birthDate))} onClick={onCheckout}>
+                <button className="btn secondary" disabled={payBusy || !normalizeBirthDate(birthDate)} onClick={onCheckout}>
                   {payBusy ? "Presmerovávam..." : "Pokračovať na platbu"}
                 </button>
               ) : (
@@ -385,25 +399,13 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
                   {(cat.recommendation ?? "").trim() && paid ? <p className="catText">{cat.recommendation}</p> : null}
 
                   <div className="grid">
-                    {(cat.items ?? []).map((it, idx) => {
-                      const locked = !paid && idx !== 0;
-                      return (
-                        <div className={`item ${locked ? "locked" : ""}`} key={it.id ?? idx}>
-                          <h3>{it.title ?? `Položka ${idx + 1}`}</h3>
-                          {typeof it.value === "number" ? <div className="meta">Hodnota: {it.value}</div> : null}
-
-                          {locked ? (
-                            <div>Skryté. Sprístupní sa po platbe.</div>
-                          ) : (
-                            <div>
-                              {(it.text ?? "").trim() && (it.text ?? "").trim() !== (it.title ?? "").trim()
-                                ? it.text
-                                : ""}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {(cat.items ?? []).map((it, idx) => (
+                      <div className="item" key={it.id ?? idx}>
+                        <h3>{it.title ?? `Položka ${idx + 1}`}</h3>
+                        {typeof it.value === "number" ? <div className="meta">Hodnota: {it.value}</div> : null}
+                        {(it.text ?? "").trim() && (it.text ?? "").trim() !== (it.title ?? "").trim() ? <div>{it.text}</div> : null}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -415,10 +417,6 @@ export default function EditionClient({ slug, edition }: { slug: string; edition
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
     </div>
   );
 }
